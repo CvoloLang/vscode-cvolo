@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+bin/
+obj/
+
+# Packaged extension artifacts
+*.vsix
+
+# VS Code test/runtime artifacts
+.vscode-test/
+.vscode-test-web/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment/local configuration
+.env
+.env.*
+!.env.example
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary/editor files
+*.swp
+*.swo
+*~
+*.tmp
+*.temp
+
+# Local VS Code workspace state
+.vscode/
+.vs/
+
+# Bundled Language Server artifacts are generated/staged,
+# not committed as part of VSCode-0.
+server/*
+!server/README.md
+!server/.gitkeep

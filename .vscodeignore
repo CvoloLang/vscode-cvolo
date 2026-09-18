@@ -1,0 +1,9 @@
+.github/**
+.vscode/**
+specs/**
+scripts/**
+test/**
+tests/**
+.gitignore
+README.md
+server/README.md

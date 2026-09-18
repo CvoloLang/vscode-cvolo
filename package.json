@@ -1,0 +1,87 @@
+{
+  "name": "cvolo-language",
+  "displayName": "Cvolo",
+  "description": "Cvolo language support for Visual Studio Code via the standalone Cvolo Language Server.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Cvolo Language Server requires filesystem-backed project files."
+    }
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "cvolo",
+    "language",
+    "lsp"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:cvolo"
+  ],
+  "dependencies": {
+    "vscode-languageclient": "9.0.1"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "cvolo",
+        "aliases": [
+          "Cvolo",
+          "cvolo"
+        ],
+        "extensions": [
+          ".cvl"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "cvolo",
+        "scopeName": "source.cvolo",
+        "path": "./syntaxes/cvolo.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Cvolo",
+      "properties": {
+        "cvolo.server.path": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Development/advanced-user override for the Cvolo Language Server executable. Empty uses a bundled server when present, then cvolo-language-server from PATH."
+        },
+        "cvolo.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "scope": "window",
+          "description": "Trace communication between VS Code and the Cvolo Language Server."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "cvolo.restartLanguageServer",
+        "title": "Cvolo: Restart Language Server"
+      }
+    ]
+  },
+  "scripts": {
+    "check": "node --check extension.js && node --check extension-runtime.js && node --check scripts/validate.js && node scripts/validate.js && node --test"
+  }
+}
