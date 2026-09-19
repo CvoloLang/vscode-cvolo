@@ -14,6 +14,7 @@
     { "include": "#keywords" },
     { "include": "#function-calls" },
     { "include": "#constants-uppercase" },
+    { "include": "#type-references" },
     { "include": "#constants" },
     { "include": "#operators" },
     { "include": "#punctuation" }
@@ -167,6 +168,12 @@
           "name": "constant.other.cvolo",
           "match": "\\b(?:[A-Z][A-Z0-9_]{2,}|GL_[A-Za-z0-9_]+|VK_[A-Za-z0-9_]+|CUDA_[A-Za-z0-9_]+)\\b"
         }
+      ]
+    },
+
+    "type-references": {
+      "patterns": [
+        { "name": "entity.name.type.cvolo", "match": "\\b[A-Z][A-Za-z0-9_]*\\b" }
       ]
     },
 
