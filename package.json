@@ -52,6 +52,25 @@
         "path": "./syntaxes/cvolo.tmLanguage.json"
       }
     ],
+    "semanticTokenScopes": [
+      {
+        "scopes": {
+          "namespace": ["entity.name.namespace"],
+          "type": ["entity.name.type", "support.type"],
+          "struct": ["entity.name.type.struct"],
+          "enum": ["entity.name.type.enum"],
+          "interface": ["entity.name.type.interface"],
+          "typeParameter": ["entity.name.type.parameter"],
+          "parameter": ["variable.parameter"],
+          "variable": ["variable.other", "variable"],
+          "property": ["variable.other.property", "variable.other.member"],
+          "enumMember": ["variable.other.enummember"],
+          "function": ["entity.name.function", "support.function"],
+          "method": ["entity.name.function", "support.function"],
+          "operator": ["keyword.operator"]
+        }
+      }
+    ],
     "configuration": {
       "title": "Cvolo",
       "properties": {
