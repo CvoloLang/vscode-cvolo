@@ -3,7 +3,6 @@
   "name": "Cvolo",
   "scopeName": "source.cvolo",
   "patterns": [
-    { "include": "#doc-comments" },
     { "include": "#comments" },
     { "include": "#attributes" },
     { "include": "#raw-strings" },
@@ -30,6 +29,7 @@
 
     "comments": {
       "patterns": [
+        { "name": "comment.line.documentation.cvolo", "match": "///.*$" },
         { "name": "comment.line.double-slash.cvolo", "match": "//.*$" },
         {
           "name": "comment.block.cvolo",
