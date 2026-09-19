@@ -3,6 +3,7 @@
   "name": "Cvolo",
   "scopeName": "source.cvolo",
   "patterns": [
+    { "include": "#doc-comments" },
     { "include": "#comments" },
     { "include": "#attributes" },
     { "include": "#raw-strings" },
@@ -20,6 +21,12 @@
     { "include": "#punctuation" }
   ],
   "repository": {
+
+    "doc-comments": {
+      "patterns": [
+        { "name": "comment.line.documentation.cvolo", "match": "///.*$" }
+      ]
+    },
 
     "comments": {
       "patterns": [
