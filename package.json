@@ -72,6 +72,13 @@
         }
       }
     ],
+    "themes": [
+      {
+        "label": "Cvolo Visual Studio 2019 Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/cvolo-vs2019-dark.json"
+      }
+    ],
     "configuration": {
       "title": "Cvolo",
       "properties": {
