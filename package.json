@@ -54,13 +54,14 @@
     ],
     "semanticTokenScopes": [
       {
+        "language": "cvolo",
         "scopes": {
-          "namespace": ["entity.name.namespace"],
+          "namespace": ["entity.name.type.namespace", "entity.name.namespace"],
           "type": ["entity.name.type", "support.type"],
           "struct": ["entity.name.type.struct"],
           "enum": ["entity.name.type.enum"],
           "interface": ["entity.name.type.interface"],
-          "typeParameter": ["entity.name.type.parameter"],
+          "typeParameter": ["entity.name.type.type-parameter"],
           "parameter": ["variable.parameter"],
           "variable": ["variable.other", "variable"],
           "property": ["variable.other.property", "variable.other.member"],
