@@ -37,6 +37,9 @@
       "include": "#constants-uppercase"
     },
     {
+      "include": "#field-initializers"
+    },
+    {
       "include": "#type-references"
     },
     {
@@ -348,6 +351,21 @@
         {
           "name": "constant.other.cvolo",
           "match": "\\b(?:[A-Z][A-Z0-9_]{2,}|GL_[A-Za-z0-9_]+|VK_[A-Za-z0-9_]+|CUDA_[A-Za-z0-9_]+)\\b"
+        }
+      ]
+    },
+    "field-initializers": {
+      "patterns": [
+        {
+          "match": "([{,])[ \\t\\r\\n]*([A-Za-z_][A-Za-z0-9_]*)(?=[ \\t]*:)",
+          "captures": {
+            "1": {
+              "name": "punctuation.cvolo"
+            },
+            "2": {
+              "name": "variable.other.property.cvolo"
+            }
+          }
         }
       ]
     },

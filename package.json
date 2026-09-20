@@ -85,7 +85,7 @@
         "cvolo.server.path": {
           "type": "string",
           "default": "",
-          "scope": "machine",
+          "scope": "machine-overridable",
           "description": "Development/advanced-user override for the Cvolo Language Server executable. Empty uses a bundled server when present, then cvolo-language-server from PATH."
         },
         "cvolo.trace.server": {
