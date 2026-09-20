@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
 const { LifecycleController, resolveServerCommand } = require('./extension-runtime');
+const { registerCvoloBraceColorizer } = require('./brace-colorizer');
 
 let lifecycle;
 let outputChannel;
@@ -108,6 +109,8 @@ function requestRestart(reason) {
 async function activate(context) {
   outputChannel = vscode.window.createOutputChannel('Cvolo Language Server');
   context.subscriptions.push(outputChannel);
+
+  registerCvoloBraceColorizer(context);
 
   lifecycle = new LifecycleController({
     startClient: () => createAndStartClient(context),

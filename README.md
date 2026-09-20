@@ -38,21 +38,3 @@ Protocol tracing uses the canonical `vscode-languageclient` setting:
 
 ```text
 cvolo.trace.server = off | messages | verbose
-```
-
-The LanguageClient itself owns this setting. Changing protocol trace does not restart the Language Server, does not call extension-owned `setTrace`, and does not add process CLI arguments.
-
-The extension writes lifecycle context to the **Cvolo Language Server** output channel. Extension-owned pre-client resolution/validation failures may show one concise error notification. Failures after `LanguageClient.start()` takes over are logged with extension context without adding an unconditional second popup.
-
-## Development
-
-Install the exact lockfile dependencies and run the foundation checks:
-
-```bash
-npm ci
-npm run check
-```
-
-`npm run check` performs JavaScript syntax checks, static repository validation, and deterministic Node unit tests. The tests cover RID/server resolution, lifecycle serialization, deactivation fencing, failure-chain recovery, and manifest/runtime contracts without requiring a VS Code extension host.
-
-No compiler, ANTLR, bundler, or semantic implementation dependency belongs in this repository foundation.
