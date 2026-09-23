@@ -16,6 +16,7 @@
   "semanticTokenColors": {
     "namespace": "#D4D4D4",
     "type": "#4EC9B0",
+    "class": "#4EC9B0",
     "struct": "#4EC9B0",
     "enum": "#B8D7A3",
     "interface": "#B8D7A3",
@@ -129,6 +130,33 @@
       ],
       "settings": {
         "foreground": "#4EC9B0"
+      }
+    },
+    {
+      "name": "Cvolo namespace/import name",
+      "scope": [
+        "entity.name.namespace.cvolo",
+        "entity.name.type.namespace.cvolo"
+      ],
+      "settings": {
+        "foreground": "#D4D4D4"
+      }
+    },
+    {
+      "name": "Cvolo generic angle brackets",
+      "scope": [
+        "punctuation.definition.generic.begin.cvolo",
+        "punctuation.definition.generic.end.cvolo"
+      ],
+      "settings": {
+        "foreground": "#FFD700"
+      }
+    },
+    {
+      "name": "Cvolo generic type parameter",
+      "scope": "entity.name.type.type-parameter.cvolo",
+      "settings": {
+        "foreground": "#B8D7A3"
       }
     },
     {

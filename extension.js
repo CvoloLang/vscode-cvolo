@@ -4,6 +4,7 @@ const vscode = require('vscode');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
 const { LifecycleController, resolveServerCommand } = require('./extension-runtime');
 const { registerCvoloBraceColorizer } = require('./brace-colorizer');
+const { registerCvoloSyntaxColorizer } = require('./syntax-colorizer');
 
 let lifecycle;
 let outputChannel;
@@ -43,11 +44,11 @@ async function createAndStartClient(context) {
   outputChannel.appendLine(
     `[client] starting Cvolo Language Server from ${resolved.source}: ${resolved.command}`
   );
-  outputChannel.appendLine('[client] server arguments: (none)');
+  outputChannel.appendLine('[client] server arguments: --stdio');
 
   const serverOptions = {
     command: resolved.command,
-    args: []
+    args: ['--stdio']
   };
 
   const clientOptions = {
@@ -111,6 +112,7 @@ async function activate(context) {
   context.subscriptions.push(outputChannel);
 
   registerCvoloBraceColorizer(context);
+  registerCvoloSyntaxColorizer(context);
 
   lifecycle = new LifecycleController({
     startClient: () => createAndStartClient(context),
@@ -136,7 +138,7 @@ async function activate(context) {
     })
   );
 
-  await lifecycle.start('initial start').catch(() => undefined);
+  schedule(lifecycle.start('initial start'));
 }
 
 async function deactivate() {

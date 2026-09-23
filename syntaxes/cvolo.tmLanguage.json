@@ -25,6 +25,9 @@
       "include": "#numbers"
     },
     {
+      "include": "#namespace-directives"
+    },
+    {
       "include": "#type-declarations"
     },
     {
@@ -44,6 +47,9 @@
     },
     {
       "include": "#constants"
+    },
+    {
+      "include": "#generic-arguments"
     },
     {
       "include": "#operators"
@@ -306,7 +312,7 @@
       "patterns": [
         {
           "name": "meta.type.declaration.cvolo",
-          "match": "\\b(struct|union|enum|extension|interface|protocol|alias)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(struct|class|union|enum|extension|interface|protocol|alias)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": {
               "name": "storage.type.cvolo"
@@ -326,11 +332,11 @@
         },
         {
           "name": "storage.modifier.cvolo",
-          "match": "\\b(?:private|internal|public|unsafe|unbound|val|var|refvar|ref|global|embed|heap)\\b"
+          "match": "\\b(?:private|internal|public|unsafe|unbound|val|var|refvar|ref|global|embed|heap|delegate)\\b"
         },
         {
           "name": "keyword.control.cvolo",
-          "match": "\\b(?:if|else|while|for|foreach|in|switch|case|default|break|continue|return|defer)\\b"
+          "match": "\\b(?:if|else|while|for|foreach|in|switch|case|default|break|continue|return|defer|try|catch|finally)\\b"
         },
         {
           "name": "keyword.other.cvolo",
@@ -406,6 +412,64 @@
         {
           "name": "punctuation.cvolo",
           "match": "[();,.:?]"
+        }
+      ]
+    },
+    "namespace-directives": {
+      "patterns": [
+        {
+          "name": "meta.namespace.directive.cvolo",
+          "match": "\\b(using|namespace)\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\s*\\.\\s*[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": {
+              "name": "keyword.other.cvolo"
+            },
+            "2": {
+              "name": "entity.name.namespace.cvolo"
+            }
+          }
+        }
+      ]
+    },
+    "generic-arguments": {
+      "patterns": [
+        {
+          "name": "meta.generic.arguments.cvolo",
+          "begin": "(?<=[A-Za-z0-9_])(<)",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.generic.begin.cvolo"
+            }
+          },
+          "end": "(>)",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.generic.end.cvolo"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#generic-arguments"
+            },
+            {
+              "name": "entity.name.type.type-parameter.cvolo",
+              "match": "\\b(?:[A-Z]|T[A-Z][A-Za-z0-9_]*)\\b"
+            },
+            {
+              "include": "#type-references"
+            },
+            {
+              "include": "#keywords"
+            },
+            {
+              "name": "punctuation.separator.comma.cvolo",
+              "match": ","
+            },
+            {
+              "name": "punctuation.cvolo",
+              "match": "[.?:\\[\\]*&]"
+            }
+          ]
         }
       ]
     }

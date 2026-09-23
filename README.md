@@ -36,5 +36,3 @@ Use **Cvolo: Restart Language Server** (`cvolo.restartLanguageServer`) to perfor
 
 Protocol tracing uses the canonical `vscode-languageclient` setting:
 
-```text
-cvolo.trace.server = off | messages | verbose

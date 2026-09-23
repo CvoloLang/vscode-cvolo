@@ -56,19 +56,54 @@
       {
         "language": "cvolo",
         "scopes": {
-          "namespace": ["entity.name.type.namespace", "entity.name.namespace"],
-          "type": ["entity.name.type", "support.type"],
-          "struct": ["entity.name.type.struct"],
-          "enum": ["entity.name.type.enum"],
-          "interface": ["entity.name.type.interface"],
-          "typeParameter": ["entity.name.type.type-parameter"],
-          "parameter": ["variable.parameter"],
-          "variable": ["variable.other", "variable"],
-          "property": ["variable.other.property", "variable.other.member"],
-          "enumMember": ["variable.other.enummember"],
-          "function": ["entity.name.function", "support.function"],
-          "method": ["entity.name.function", "support.function"],
-          "operator": ["keyword.operator"]
+          "namespace": [
+            "entity.name.type.namespace",
+            "entity.name.namespace"
+          ],
+          "type": [
+            "entity.name.type",
+            "support.type"
+          ],
+          "class": [
+            "entity.name.type.class"
+          ],
+          "struct": [
+            "entity.name.type.struct"
+          ],
+          "enum": [
+            "entity.name.type.enum"
+          ],
+          "interface": [
+            "entity.name.type.interface"
+          ],
+          "typeParameter": [
+            "entity.name.type.type-parameter"
+          ],
+          "parameter": [
+            "variable.parameter"
+          ],
+          "variable": [
+            "variable.other",
+            "variable"
+          ],
+          "property": [
+            "variable.other.property",
+            "variable.other.member"
+          ],
+          "enumMember": [
+            "variable.other.enummember"
+          ],
+          "function": [
+            "entity.name.function",
+            "support.function"
+          ],
+          "method": [
+            "entity.name.function",
+            "support.function"
+          ],
+          "operator": [
+            "keyword.operator"
+          ]
         }
       }
     ],
@@ -109,6 +144,6 @@
     ]
   },
   "scripts": {
-    "check": "node --check extension.js && node --check extension-runtime.js && node --check scripts/validate.js && node scripts/validate.js && node --test"
+    "check": "node --check extension.js && node --check extension-runtime.js && node --check brace-colorizer.js && node --check brace-colorizer-runtime.js && node --check syntax-colorizer.js && node --check syntax-colorizer-runtime.js && node --check scripts/validate.js && node scripts/validate.js && node --test"
   }
 }
