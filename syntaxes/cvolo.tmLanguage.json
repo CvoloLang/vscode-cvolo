@@ -37,6 +37,9 @@
       "include": "#function-calls"
     },
     {
+      "include": "#member-access-identifiers"
+    },
+    {
       "include": "#constants-uppercase"
     },
     {
@@ -332,7 +335,7 @@
         },
         {
           "name": "storage.modifier.cvolo",
-          "match": "\\b(?:private|internal|public|unsafe|unbound|val|var|refvar|ref|global|embed|heap|delegate)\\b"
+          "match": "\\b(?:private|internal|public|unsafe|delegate|unbound|val|var|refvar|ref|global|embed|heap)\\b"
         },
         {
           "name": "keyword.control.cvolo",
@@ -470,6 +473,14 @@
               "match": "[.?:\\[\\]*&]"
             }
           ]
+        }
+      ]
+    },
+    "member-access-identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.member.cvolo",
+          "match": "(?<=\\.)[A-Za-z_][A-Za-z0-9_]*"
         }
       ]
     }
