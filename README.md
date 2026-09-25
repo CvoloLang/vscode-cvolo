@@ -10,7 +10,7 @@ The extension declares VS Code `^1.82.0` and runs as a workspace extension (`ext
 
 The VSCode-0 compatibility lane is Node 18.15.x, matching the runtime family implied by the VS Code 1.82 baseline. CI also runs a newer Node lane for forward compatibility.
 
-Virtual workspaces are explicitly unsupported because the current Language Server contract requires filesystem-backed project files. VSCode-0 does not claim unrestricted untrusted-workspace safety; that requires a later review of actual server/project execution behavior.
+Virtual workspaces are explicitly unsupported because the Language Server requires filesystem-backed Cvolo source files. Loose workspaces are supported and a `.cvlproj` is optional. VSCode-0 does not claim unrestricted untrusted-workspace safety; that requires a later review of actual server/project execution behavior.
 
 ## Language Server discovery
 
@@ -31,6 +31,12 @@ The canonical LanguageClient id is `cvolo`. One serialized lifecycle gate owns i
 The LanguageClient default connection-close restart behavior is disabled with `connectionOptions.maxRestartCount = 0`. VSCode-0 intentionally leaves crash recovery to manual/configuration restart rather than adding a second automatic recovery loop.
 
 Use **Cvolo: Restart Language Server** (`cvolo.restartLanguageServer`) to perform a serialized stop/start replacement.
+
+## Loose workspaces and libraries
+
+Filesystem-backed `.cvl` files do not require a `.cvlproj`. A loose directory shares its files through one language-server semantic session and does not create or modify a project file on disk.
+
+Set `cvolo.libraryPaths` to `.cvlib` files or directories whose top-level `.cvlib` files should provide editor semantics. Relative entries resolve against the loose workspace root. Manifest-backed projects ignore this setting and use their normal `PackageReference`, feed, lock-file, and package-cache graph. Changing the setting restarts the Language Server so snapshots are rebuilt.
 
 ## Tracing and diagnostics
 

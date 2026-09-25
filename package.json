@@ -13,7 +13,7 @@
   "capabilities": {
     "virtualWorkspaces": {
       "supported": false,
-      "description": "Cvolo Language Server requires filesystem-backed project files."
+      "description": "Cvolo Language Server requires filesystem-backed source files; a .cvlproj is optional."
     }
   },
   "categories": [
@@ -122,6 +122,15 @@
           "default": "",
           "scope": "machine-overridable",
           "description": "Development/advanced-user override for the Cvolo Language Server executable. Empty uses a bundled server when present, then cvolo-language-server from PATH."
+        },
+        "cvolo.libraryPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "window",
+          "description": "Additional .cvlib files, or directories whose top-level .cvlib files are mounted, for loose Cvolo workspaces only. Relative paths are resolved against the loose workspace semantic root. This setting is ignored for manifest-backed .cvlproj projects."
         },
         "cvolo.trace.server": {
           "type": "string",

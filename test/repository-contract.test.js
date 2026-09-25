@@ -34,7 +34,8 @@ test('LanguageClient id, selector, crash policy and restart command are canonica
   assert.match(extensionSource, /cvolo\.restartLanguageServer/);
 });
 
-test('only cvolo.server.path configuration changes schedule a restart', () => {
+test('server path and loose library path configuration changes schedule a restart', () => {
   assert.match(extensionSource, /affectsConfiguration\(['"]cvolo\.server\.path['"]\)/);
-  assert.equal((extensionSource.match(/affectsConfiguration\(/g) || []).length, 1);
+  assert.match(extensionSource, /affectsConfiguration\(['"]cvolo\.libraryPaths['"]\)/);
+  assert.equal((extensionSource.match(/affectsConfiguration\(/g) || []).length, 2);
 });

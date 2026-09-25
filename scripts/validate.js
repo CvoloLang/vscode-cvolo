@@ -146,6 +146,27 @@ if (!Array.isArray(languageConfiguration.autoClosingPairs) || languageConfigurat
 }
 
 const properties = pkg.contributes?.configuration?.properties ?? {};
+const libraryPaths = properties['cvolo.libraryPaths'];
+if (!libraryPaths) {
+  fail('cvolo.libraryPaths setting is required');
+} else {
+  if (libraryPaths.type !== 'array' || !sameArray(libraryPaths.default, [])) {
+    fail('cvolo.libraryPaths must be an array with default []');
+  }
+  if (libraryPaths.items?.type !== 'string') {
+    fail('cvolo.libraryPaths items must be strings');
+  }
+  if (libraryPaths.scope !== 'window') {
+    fail('cvolo.libraryPaths must have window scope');
+  }
+  if (typeof libraryPaths.description !== 'string'
+      || !libraryPaths.description.includes('loose Cvolo workspaces only')
+      || !libraryPaths.description.includes('top-level .cvlib files')
+      || !libraryPaths.description.includes('ignored for manifest-backed .cvlproj projects')) {
+    fail('cvolo.libraryPaths description must document loose-only top-level directory mounting and manifest-project suppression');
+  }
+}
+
 const trace = properties['cvolo.trace.server'];
 if (!trace) {
   fail('canonical cvolo.trace.server setting is required');
@@ -182,8 +203,11 @@ if (!runtimeSource.includes("'cvolo-language-server'")) {
 if (!extensionSource.includes("affectsConfiguration('cvolo.server.path')")) {
   fail('cvolo.server.path changes must trigger restart logic');
 }
-if ((extensionSource.match(/affectsConfiguration\(/g) || []).length !== 1) {
-  fail('only cvolo.server.path may have extension-owned configuration restart logic');
+if (!extensionSource.includes("affectsConfiguration('cvolo.libraryPaths')")) {
+  fail('cvolo.libraryPaths changes must trigger restart logic');
+}
+if ((extensionSource.match(/affectsConfiguration\(/g) || []).length !== 2) {
+  fail('only cvolo.server.path and cvolo.libraryPaths may have extension-owned configuration restart logic');
 }
 if (/\.setTrace\s*\(/.test(extensionSource)) {
   fail('extension-owned protocol trace setTrace logic is forbidden');

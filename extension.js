@@ -19,6 +19,16 @@ function configuredServerPath() {
     .get('server.path', '');
 }
 
+function configuredLibraryPaths() {
+  const value = vscode.workspace
+    .getConfiguration('cvolo')
+    .get('libraryPaths', []);
+
+  return Array.isArray(value)
+    ? value.filter(item => typeof item === 'string' && item.trim().length > 0)
+    : [];
+}
+
 function reportResolutionFailure(error) {
   const message = formatError(error);
   outputChannel?.appendLine(`[client] server resolution failed: ${message}`);
@@ -53,6 +63,9 @@ async function createAndStartClient(context) {
 
   const clientOptions = {
     documentSelector: [{ scheme: 'file', language: 'cvolo' }],
+    initializationOptions: {
+      libraryPaths: configuredLibraryPaths()
+    },
     outputChannel,
     revealOutputChannelOn: RevealOutputChannelOn.Error,
     connectionOptions: {
@@ -130,11 +143,15 @@ async function activate(context) {
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(event => {
-      if (!event.affectsConfiguration('cvolo.server.path')) {
+      const serverPathChanged = event.affectsConfiguration('cvolo.server.path');
+      const libraryPathsChanged = event.affectsConfiguration('cvolo.libraryPaths');
+      if (!serverPathChanged && !libraryPathsChanged) {
         return;
       }
 
-      requestRestart('cvolo.server.path changed');
+      requestRestart(libraryPathsChanged
+        ? 'cvolo.libraryPaths changed'
+        : 'cvolo.server.path changed');
     })
   );
 
