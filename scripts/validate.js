@@ -185,6 +185,11 @@ if (Object.prototype.hasOwnProperty.call(properties, 'cvolo.server.arguments')) 
   fail('VSCode-0 must not contribute generic cvolo.server.arguments');
 }
 
+const readonlyInclude = pkg.contributes?.configurationDefaults?.['files.readonlyInclude'];
+if (readonlyInclude?.['**/.cvolo/build/**'] !== true) {
+  fail('files.readonlyInclude default must mark **/.cvolo/build/** read-only');
+}
+
 if (!extensionSource.match(/new LanguageClient\(\s*['"]cvolo['"]/s)) {
   fail('LanguageClient id must be cvolo');
 }

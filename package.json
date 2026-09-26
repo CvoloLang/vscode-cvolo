@@ -145,6 +145,11 @@
         }
       }
     },
+    "configurationDefaults": {
+      "files.readonlyInclude": {
+        "**/.cvolo/build/**": true
+      }
+    },
     "commands": [
       {
         "command": "cvolo.restartLanguageServer",

@@ -39,3 +39,8 @@ test('server path and loose library path configuration changes schedule a restar
   assert.match(extensionSource, /affectsConfiguration\(['"]cvolo\.libraryPaths['"]\)/);
   assert.equal((extensionSource.match(/affectsConfiguration\(/g) || []).length, 2);
 });
+
+test('extracted package sources are marked read-only', () => {
+  const readonlyInclude = pkg.contributes.configurationDefaults?.['files.readonlyInclude'];
+  assert.equal(readonlyInclude?.['**/.cvolo/build/**'], true);
+});
