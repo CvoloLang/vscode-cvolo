@@ -103,6 +103,9 @@
           ],
           "operator": [
             "keyword.operator"
+          ],
+          "keyword": [
+            "keyword"
           ]
         }
       }

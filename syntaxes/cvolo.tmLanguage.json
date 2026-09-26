@@ -343,7 +343,7 @@
         },
         {
           "name": "keyword.other.cvolo",
-          "match": "\\b(?:namespace|using|expose|extern|where|is|asm|volatile|alignstack|intel|nameof|typeof|panic)\\b"
+          "match": "\\b(?:namespace|using|expose|extern|where|is|asm|volatile|alignstack|intel|nameof|typeof|sizeof|alignof|offsetof|panic)\\b"
         }
       ]
     },
