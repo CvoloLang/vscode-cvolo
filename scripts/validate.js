@@ -195,7 +195,9 @@ if (readonlyInclude?.['**/.cvolo/build/**'] !== true) {
 const decorationDefaults = {
   'cvolo.codeLens.references': true,
   'cvolo.codeLens.layout': true,
-  'cvolo.codeLens.members': false,
+  'cvolo.codeLens.fields': false,
+  'cvolo.codeLens.fieldReferences': true,
+  'cvolo.codeLens.fieldLayout': true,
   'cvolo.codeLens.nativeInterop': true,
   'cvolo.inlayHints.types': true,
   'cvolo.inlayHints.parameters': true,
@@ -206,6 +208,53 @@ const decorationDefaults = {
 };
 
 for (const [key, expected] of Object.entries(decorationDefaults)) {
+  const setting = properties[key];
+  if (!setting) {
+    fail(`${key} setting is required`);
+    continue;
+  }
+  if (setting.type !== 'boolean' || setting.default !== expected) {
+    fail(`${key} must be a boolean with default ${expected}`);
+  }
+  if (setting.scope !== 'window') {
+    fail(`${key} must have window scope`);
+  }
+  if (typeof setting.description !== 'string' || !setting.description.trim()) {
+    fail(`${key} must have a non-empty description`);
+  }
+}
+
+if (Object.prototype.hasOwnProperty.call(properties, 'cvolo.codeLens.members')) {
+  fail('cvolo.codeLens.members must be replaced by cvolo.codeLens.fields/fieldReferences/fieldLayout');
+}
+
+// The offset notation is a choice, not a boolean, so it carries its own contract: only the three
+// documented words are accepted, because an unknown word would silently keep an old notation.
+const offsetFormat = properties['cvolo.layout.offsetFormat'];
+if (!offsetFormat) {
+  fail('cvolo.layout.offsetFormat setting is required');
+} else {
+  if (offsetFormat.type !== 'string' || offsetFormat.default !== 'decimal') {
+    fail('cvolo.layout.offsetFormat must be a string with default decimal');
+  }
+  const values = offsetFormat.enum;
+  if (!Array.isArray(values) || values.join(',') !== 'decimal,hex,decimalAndHex') {
+    fail('cvolo.layout.offsetFormat enum must be decimal/hex/decimalAndHex');
+  }
+  if (offsetFormat.scope !== 'window') {
+    fail('cvolo.layout.offsetFormat must have window scope');
+  }
+  if (typeof offsetFormat.description !== 'string' || !offsetFormat.description.trim()) {
+    fail('cvolo.layout.offsetFormat must have a non-empty description');
+  }
+}
+
+const layoutViewDefaults = {
+  'cvolo.layout.showPaddingPercentage': false,
+  'cvolo.layout.autoRefresh': true
+};
+
+for (const [key, expected] of Object.entries(layoutViewDefaults)) {
   const setting = properties[key];
   if (!setting) {
     fail(`${key} setting is required`);

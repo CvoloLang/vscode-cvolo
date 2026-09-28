@@ -14,7 +14,9 @@ const editorIntelligenceSource = fs.readFileSync(path.join(root, 'editor-intelli
 const decorationDefaults = {
   'cvolo.codeLens.references': true,
   'cvolo.codeLens.layout': true,
-  'cvolo.codeLens.members': false,
+  'cvolo.codeLens.fields': false,
+  'cvolo.codeLens.fieldReferences': true,
+  'cvolo.codeLens.fieldLayout': true,
   'cvolo.codeLens.nativeInterop': true,
   'cvolo.inlayHints.types': true,
   'cvolo.inlayHints.parameters': true,
@@ -24,10 +26,46 @@ const decorationDefaults = {
   'cvolo.inlayHints.genericArguments': false
 };
 
+const layoutViewDefaults = {
+  'cvolo.layout.showPaddingPercentage': false,
+  'cvolo.layout.autoRefresh': true
+};
+
 test('every documented decoration setting is contributed with its default', () => {
   const properties = pkg.contributes.configuration.properties;
 
   for (const [key, expected] of Object.entries(decorationDefaults)) {
+    assert.equal(properties[key]?.type, 'boolean', key);
+    assert.equal(properties[key]?.default, expected, key);
+    assert.equal(properties[key]?.scope, 'window', key);
+    assert.ok(properties[key]?.description.trim().length > 0, key);
+  }
+});
+
+test('the earlier per-member setting is replaced by the field master gate and its two sub-settings', () => {
+  const properties = pkg.contributes.configuration.properties;
+
+  assert.equal('cvolo.codeLens.members' in properties, false);
+  assert.equal(properties['cvolo.codeLens.fields'].default, false);
+  assert.match(properties['cvolo.codeLens.fields'].description, /master switch/i);
+  assert.match(properties['cvolo.codeLens.fieldReferences'].description, /cvolo\.codeLens\.fields/);
+  assert.match(properties['cvolo.codeLens.fieldLayout'].description, /cvolo\.codeLens\.fields/);
+});
+
+test('the offset notation is a three-valued choice, not a boolean', () => {
+  const setting = pkg.contributes.configuration.properties['cvolo.layout.offsetFormat'];
+
+  assert.equal(setting.type, 'string');
+  assert.equal(setting.default, 'decimal');
+  assert.deepEqual(setting.enum, ['decimal', 'hex', 'decimalAndHex']);
+  assert.equal(setting.scope, 'window');
+  assert.ok(setting.description.trim().length > 0);
+});
+
+test('every documented layout view setting is contributed with its default', () => {
+  const properties = pkg.contributes.configuration.properties;
+
+  for (const [key, expected] of Object.entries(layoutViewDefaults)) {
     assert.equal(properties[key]?.type, 'boolean', key);
     assert.equal(properties[key]?.default, expected, key);
     assert.equal(properties[key]?.scope, 'window', key);

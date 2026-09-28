@@ -159,11 +159,23 @@
           "scope": "window",
           "description": "Show a CodeLens with the compiler-computed size, alignment and padding of each concrete type. Clicking it opens the detailed type layout."
         },
-        "cvolo.codeLens.members": {
+        "cvolo.codeLens.fields": {
           "type": "boolean",
           "default": false,
           "scope": "window",
-          "description": "Also show CodeLens for every member of a type instead of only for the type itself."
+          "description": "Master switch for the CodeLens row on every field. Turns both per-field lenses off without changing the type-level lenses."
+        },
+        "cvolo.codeLens.fieldReferences": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Show a CodeLens with the number of references to each field. Only used when \"cvolo.codeLens.fields\" is enabled."
+        },
+        "cvolo.codeLens.fieldLayout": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Show a CodeLens with the offset, size, alignment and preceding padding of each field. Only used when \"cvolo.codeLens.fields\" is enabled."
         },
         "cvolo.codeLens.nativeInterop": {
           "type": "boolean",
@@ -206,6 +218,29 @@
           "default": false,
           "scope": "window",
           "description": "Show inferred generic arguments at call and construction sites."
+        },
+        "cvolo.layout.offsetFormat": {
+          "type": "string",
+          "enum": [
+            "decimal",
+            "hex",
+            "decimalAndHex"
+          ],
+          "default": "decimal",
+          "scope": "window",
+          "description": "Notation used for byte counts in field layout decorations."
+        },
+        "cvolo.layout.showPaddingPercentage": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "description": "Show padding in the type layout view as a byte count followed by the share of the type it takes."
+        },
+        "cvolo.layout.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Keep the type layout view up to date while you edit the source of the type it shows."
         }
       }
     },
