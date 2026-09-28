@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const {
   LAYOUT_SCHEME,
+  LAYOUT_UNAVAILABLE_TEXT,
   REFERENCE_PROVIDER_COMMAND,
   SHOW_REFERENCES_COMMAND,
   SHOW_REFERENCES_EDITOR_COMMAND,
@@ -100,7 +101,17 @@ async function showTypeLayout(args, getClient, views, log) {
   const view = renderLayout(layout, options);
 
   const uri = vscode.Uri.from(layoutDocumentDescriptor(layout));
-  views.set(uri.toString(), { text: view.text, tokens: view.tokens, options });
+  // The registry entry is presentation state: the latest text, the spans to navigate by, the
+  // compiler's subject so the view can be re-asked, the source document that anchors it, and a
+  // generation so a slow answer cannot replace a newer one (§45).
+  views.set(uri.toString(), {
+    text: view.text,
+    tokens: view.tokens,
+    options,
+    subject: layout.subject,
+    anchor: { uri: target.uri },
+    generation: 0
+  });
 
   log(`show type layout: ${layout.typeDisplay} (${layout.targetDisplay}) for ${target.uri}`);
 
@@ -109,6 +120,76 @@ async function showTypeLayout(args, getClient, views, log) {
     preview: true,
     viewColumn: vscode.ViewColumn.Beside
   });
+}
+
+// A view re-renders from the same registry entry, so a refresh only replaces the text and the spans.
+// A null answer means the type the view was about is gone; the view says so instead of keeping the
+// numbers it was opened with (§30).
+function applyLayoutResponse(entry, response) {
+  const layout = normalizeTypeLayout(response);
+  if (!layout) {
+    entry.text = LAYOUT_UNAVAILABLE_TEXT;
+    entry.tokens = [];
+    return;
+  }
+
+  const view = renderLayout(layout, entry.options);
+  entry.text = view.text;
+  entry.tokens = view.tokens;
+}
+
+// Edits arrive in bursts, so a refresh waits for a short quiet period before it runs. The refresh
+// walks every open view and re-asks by the compiler's subject; the server re-resolves it against the
+// snapshot that is current, so the numbers always describe the program as it is now, not as it was
+// when the view opened (§27-§29).
+const REFRESH_DEBOUNCE_MS = 200;
+
+function createLayoutRefresher(getClient, views, layoutChanged, log) {
+  let timer = null;
+
+  function schedule() {
+    if (timer !== null) {
+      clearTimeout(timer);
+    }
+
+    timer = setTimeout(async () => {
+      timer = null;
+
+      const client = getClient();
+      if (!client) {
+        return;
+      }
+
+      for (const [key, entry] of views) {
+        if (!entry.subject) {
+          continue;
+        }
+
+        const generation = ++entry.generation;
+        let response;
+        try {
+          response = await client.sendRequest(
+            TYPE_LAYOUT_REQUEST,
+            typeLayoutRequestParams({ uri: entry.anchor.uri, subject: entry.subject })
+          );
+        } catch (error) {
+          log(`layout refresh failed: ${formatError(error)}`);
+          continue;
+        }
+
+        // A slower answer must not replace a newer one (§55).
+        if (entry.generation !== generation) {
+          continue;
+        }
+
+        entry.options = layoutViewOptions();
+        applyLayoutResponse(entry, response);
+        layoutChanged.fire(vscode.Uri.parse(key));
+      }
+    }, REFRESH_DEBOUNCE_MS);
+  }
+
+  return { schedule };
 }
 
 // The token whose span contains the cursor, if any. The server decided what each span means; the
@@ -260,11 +341,31 @@ function registerLayoutProviders(context, views) {
 function registerEditorIntelligence(context, { getClient, log = () => {} }) {
   const views = new Map();
 
+  // An open view is text the extension owns, so a refresh has to tell the editor to ask for it again.
+  const layoutChanged = new vscode.EventEmitter();
+  context.subscriptions.push(layoutChanged);
+
   context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(LAYOUT_SCHEME, {
+    onDidChange: layoutChanged.event,
     provideTextDocumentContent: uri => views.get(uri.toString())?.text ?? ''
   }));
 
   registerLayoutProviders(context, views);
+
+  // Every open view is re-asked when a Cvolo document changes or a viewer setting changes. The
+  // project's own semantic generation and target live on the server side of the snapshot, so the
+  // client only has to know that something relevant moved (§29).
+  const refresher = createLayoutRefresher(getClient, views, layoutChanged, log);
+  context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
+    if (event.document.languageId === 'cvolo') {
+      refresher.schedule();
+    }
+  }));
+  context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+    if (event.affectsConfiguration('cvolo')) {
+      refresher.schedule();
+    }
+  }));
 
   context.subscriptions.push(vscode.commands.registerCommand(SHOW_REFERENCES_COMMAND, async (...args) => {
     try {

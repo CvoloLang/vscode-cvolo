@@ -96,6 +96,29 @@ test('the type layout request carries only the document and position', () => {
   assert.throws(() => runtime.typeLayoutRequestParams({ uri: 'file:///a/b.cvl' }), TypeError);
 });
 
+test('the refresh request carries the compiler subject instead of a position', () => {
+  // The view re-asks by the subject the server handed out, so a position is neither needed nor sent.
+  assert.deepEqual(
+    runtime.typeLayoutRequestParams({ uri: 'file:///a/b.cvl', subject: 'Header' }),
+    {
+      textDocument: { uri: 'file:///a/b.cvl' },
+      subject: 'Header'
+    }
+  );
+  assert.deepEqual(
+    runtime.typeLayoutRequestParams({
+      uri: 'file:///a/b.cvl',
+      subject: 'Header',
+      position: { line: 9, character: 9 }
+    }),
+    {
+      textDocument: { uri: 'file:///a/b.cvl' },
+      subject: 'Header'
+    }
+  );
+  assert.throws(() => runtime.typeLayoutRequestParams({ uri: 'file:///a/b.cvl', subject: '   ' }), TypeError);
+});
+
 test('the documented decoration defaults are the compiler defaults', () => {
   assert.deepEqual(runtime.CODE_LENS_SETTING_DEFAULTS, {
     references: true,
@@ -227,6 +250,12 @@ test('malformed compiler layouts are rejected instead of rendered', () => {
   assert.equal(runtime.normalizeTypeLayout(valueLayout({ padding: null })), null);
   assert.throws(() => runtime.formatTypeLayout({}), TypeError);
   assert.throws(() => runtime.layoutDocumentDescriptor({}), TypeError);
+});
+
+test('the compiler subject survives normalisation so the view can be re-asked', () => {
+  assert.equal(runtime.normalizeTypeLayout(valueLayout()).subject, null);
+  assert.equal(runtime.normalizeTypeLayout(valueLayout({ subject: 'Header' })).subject, 'Header');
+  assert.equal(runtime.normalizeTypeLayout(valueLayout({ subject: '' })).subject, null);
 });
 
 test('unusable member and padding rows are dropped, not repaired', () => {

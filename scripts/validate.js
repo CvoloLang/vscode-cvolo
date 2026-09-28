@@ -375,6 +375,16 @@ if (!editorIntelligenceSource.includes('registerDefinitionProvider')
 if (!editorIntelligenceSource.includes('registerCodeLensProvider')) {
   fail('editor-intelligence.js must register a layout code lens provider for nested Show Layout');
 }
+if (!editorIntelligenceSource.includes('createLayoutRefresher')
+    || !editorIntelligenceSource.includes('generation')
+    || !editorIntelligenceSource.includes('onDidChangeTextDocument')
+    || !editorIntelligenceSource.includes('onDidChangeConfiguration')
+    || !editorIntelligenceSource.includes('onDidChange: layoutChanged.event')) {
+  fail('editor-intelligence.js must refresh open layout views, by subject, when the project or settings change');
+}
+if (!editorIntelligenceSource.includes('LAYOUT_UNAVAILABLE_TEXT')) {
+  fail('editor-intelligence.js must show the unavailable state when a subject no longer resolves');
+}
 if (!/getConfiguration\('cvolo'\)\.get\('layout'/.test(editorIntelligenceSource)) {
   fail('editor-intelligence.js must read the cvolo.layout settings for the viewer');
 }
@@ -389,6 +399,9 @@ if (!/executeCommand\(SHOW_REFERENCES_EDITOR_COMMAND/.test(editorIntelligenceSou
 }
 if (/parse(Source|Text)\s*\(/.test(editorIntelligenceRuntimeSource)) {
   fail('editor-intelligence-runtime.js must not parse Cvolo source');
+}
+if (!editorIntelligenceRuntimeSource.includes('LAYOUT_UNAVAILABLE_TEXT')) {
+  fail('editor-intelligence-runtime.js must expose the unavailable layout text so the view can show it');
 }
 
 for (const relative of ['extension.js', 'editor-intelligence.js', 'editor-intelligence-runtime.js', 'extension-runtime.js']) {

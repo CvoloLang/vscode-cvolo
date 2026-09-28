@@ -108,7 +108,8 @@ test('Show Type Layout is reachable from the palette, the lens and the editor co
 
 test('the layout view is a read-only virtual document owned by the extension', () => {
   assert.match(editorIntelligenceSource, /registerTextDocumentContentProvider\(LAYOUT_SCHEME/);
-  assert.match(editorIntelligenceSource, /views\.set\(uri\.toString\(\), \{ text: view\.text, tokens: view\.tokens, options \}\)/);
+  assert.match(editorIntelligenceSource, /views\.set\(uri\.toString\(\), \{/);
+  assert.match(editorIntelligenceSource, /subject: layout\.subject/);
   assert.match(editorIntelligenceSource, /renderLayout\(layout, options\)/);
   assert.match(editorIntelligenceSource, /vscode\.ViewColumn\.Beside/);
 });
@@ -120,6 +121,17 @@ test('the layout view offers compiler-resolved navigation and hover', () => {
   // The extension follows the server's span map; it never looks a token up by its text.
   assert.doesNotMatch(editorIntelligenceSource, /indexOf\(/);
   assert.doesNotMatch(editorIntelligenceSource, /LookupType/);
+});
+
+test('an open layout refreshes by subject and never keeps stale numbers', () => {
+  // The view re-asks the server by the compiler's subject when the project or settings change,
+  // debounced, and drops an answer that arrived after a newer request (§27–§30, §45, §55).
+  assert.match(editorIntelligenceSource, /createLayoutRefresher\(getClient, views, layoutChanged, log\)/);
+  assert.match(editorIntelligenceSource, /onDidChangeTextDocument\(/);
+  assert.match(editorIntelligenceSource, /onDidChangeConfiguration\(/);
+  assert.match(editorIntelligenceSource, /entry\.generation !== generation/);
+  assert.match(editorIntelligenceSource, /LAYOUT_UNAVAILABLE_TEXT/);
+  assert.match(editorIntelligenceSource, /onDidChange: layoutChanged\.event/);
 });
 
 test('the layout view is its own language with a grammar, not plain text', () => {

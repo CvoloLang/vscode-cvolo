@@ -36,6 +36,12 @@ const DEFAULT_OFFSET_FORMAT = 'decimal';
 const DEFAULT_LAYOUT_OPTIONS = Object.freeze({ offsetFormat: DEFAULT_OFFSET_FORMAT, showPaddingPercentage: false });
 const LAYOUT_DOCUMENT_NAME = 'Layout.cvlayout';
 
+// What an open view shows when the server can no longer resolve its subject: the type was renamed or
+// removed, and numbers from an older snapshot must not stay on screen as if they were current (§30).
+// This is not an error state; it is the honest answer to a question whose subject is gone.
+const LAYOUT_UNAVAILABLE_TEXT = 'Layout\n\nThe type is no longer available in the current project snapshot.\nReopen Show Type Layout from source.\n';
+const LAYOUT_INCOMPLETE_TEXT = 'Layout unavailable while the type is incomplete.\n';
+
 function isPosition(value) {
   return !!value
     && typeof value === 'object'
@@ -131,8 +137,23 @@ function parseSourceTarget(args) {
   };
 }
 
+// A request either names a position in the source, which is how a view is first opened, or names the
+// subject the server handed out, which is how an open view refreshes after the project changes. A
+// subject request still carries the document, because the subject is only meaningful inside the
+// project that document belongs to (§28, §42).
 function typeLayoutRequestParams(target) {
-  if (!target || typeof target.uri !== 'string' || target.uri.length === 0 || !isPosition(target.position)) {
+  if (!target || typeof target.uri !== 'string' || target.uri.length === 0) {
+    throw new TypeError('typeLayoutRequestParams requires a target with a URI.');
+  }
+
+  if (typeof target.subject === 'string' && target.subject.trim().length > 0) {
+    return {
+      textDocument: { uri: target.uri },
+      subject: target.subject
+    };
+  }
+
+  if (!isPosition(target.position)) {
     throw new TypeError('typeLayoutRequestParams requires a source target with a URI and position.');
   }
 
@@ -240,6 +261,7 @@ function normalizeTypeLayout(value) {
     elementSize: count(value.elementSize),
     elementAlignment: count(value.elementAlignment),
     definition: normalizeTarget(value.definition),
+    subject: typeof value.subject === 'string' && value.subject.length > 0 ? value.subject : null,
     members: value.members.map(normalizeMember).filter(member => member !== null),
     padding: value.padding.map(normalizePadding).filter(padding => padding !== null)
   };
@@ -502,7 +524,9 @@ module.exports = {
   DEFAULT_LAYOUT_OPTIONS,
   INLAY_HINT_SETTING_DEFAULTS,
   LAYOUT_DOCUMENT_NAME,
+  LAYOUT_INCOMPLETE_TEXT,
   LAYOUT_SCHEME,
+  LAYOUT_UNAVAILABLE_TEXT,
   OFFSET_FORMATS,
   REFERENCE_PROVIDER_COMMAND,
   SHOW_REFERENCES_COMMAND,
