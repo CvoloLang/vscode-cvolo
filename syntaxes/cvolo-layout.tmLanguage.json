@@ -7,19 +7,19 @@
       "include": "#title"
     },
     {
-      "include": "#summary"
+      "include": "#target"
     },
     {
-      "include": "#section-heading"
+      "include": "#fact"
     },
     {
       "include": "#table-heading"
     },
     {
-      "include": "#table-row"
+      "include": "#padding-row"
     },
     {
-      "include": "#target"
+      "include": "#table-row"
     },
     {
       "include": "#blank-line"
@@ -27,42 +27,46 @@
   ],
   "repository": {
     "title": {
-      "match": "^\\S.*$",
+      "match": "^[^\\s:]+$",
       "name": "entity.name.type.cvolo-layout"
     },
-    "summary": {
-      "begin": "^([A-Z][A-Za-z ]*?)(\\s{2,})(.+)$",
-      "beginCaptures": {
+    "target": {
+      "match": "^(Target:)(\\s+)(\\S+)$",
+      "captures": {
         "1": {
           "name": "keyword.other.layout.cvolo-layout"
+        },
+        "3": {
+          "name": "support.constant.target.cvolo-layout"
         }
-      },
-      "end": "$",
-      "patterns": [
-        {
-          "include": "#value"
-        }
-      ]
+      }
     },
-    "section-heading": {
-      "match": "^(Memory Layout)$",
-      "name": "markup.heading.cvolo-layout"
-    },
-    "table-heading": {
-      "match": "^(Offset\\s+Size\\s+Align\\s+Field\\s+Type)$",
-      "name": "markup.heading.cvolo-layout"
-    },
-    "table-row": {
-      "begin": "^((?:\\S+ \\([^)]*\\)|\\S+))\\s+((?:\\S+ \\([^)]*\\)|\\S+))\\s+(\\S+)\\s+(.*)$",
-      "beginCaptures": {
+    "fact": {
+      "match": "^(?!(?:Target:))([A-Za-z][A-Za-z ]*)(:)(\\s+)(.+)$",
+      "captures": {
         "1": {
+          "name": "keyword.other.layout.cvolo-layout"
+        },
+        "2": {
+          "name": "punctuation.separator.cvolo-layout"
+        },
+        "4": {
           "patterns": [
             {
               "include": "#value"
             }
           ]
-        },
-        "2": {
+        }
+      }
+    },
+    "table-heading": {
+      "match": "^(Offset\\s+Size\\s+Align\\s+Field\\s+Type)$",
+      "name": "markup.heading.cvolo-layout"
+    },
+    "padding-row": {
+      "match": "^((?:0x[0-9a-fA-F]+|\\d+)(?:\\s*\\(0x[0-9a-fA-F]+\\))?)(\\s+)((?:0x[0-9a-fA-F]+|\\d+)(?:\\s*\\(0x[0-9a-fA-F]+\\))?)(\\s+)(-)(\\s+)(<[^>]+>)(\\s*)$",
+      "captures": {
+        "1": {
           "patterns": [
             {
               "include": "#value"
@@ -76,46 +80,73 @@
             }
           ]
         },
-        "4": {
+        "5": {
+          "name": "punctuation.separator.cvolo-layout"
+        },
+        "7": {
+          "name": "comment.block.padding.cvolo-layout"
+        }
+      }
+    },
+    "table-row": {
+      "match": "^((?:0x[0-9a-fA-F]+|\\d+)(?:\\s*\\(0x[0-9a-fA-F]+\\))?)(\\s+)((?:0x[0-9a-fA-F]+|\\d+)(?:\\s*\\(0x[0-9a-fA-F]+\\))?)(\\s+)((?:0x[0-9a-fA-F]+|\\d+)(?:\\s*\\(0x[0-9a-fA-F]+\\))?)(\\s+)(\\S+)(\\s+)(.+)$",
+      "captures": {
+        "1": {
           "patterns": [
             {
-              "include": "#member"
+              "include": "#value"
+            }
+          ]
+        },
+        "3": {
+          "patterns": [
+            {
+              "include": "#value"
+            }
+          ]
+        },
+        "5": {
+          "patterns": [
+            {
+              "include": "#value"
+            }
+          ]
+        },
+        "7": {
+          "name": "variable.other.member.cvolo-layout"
+        },
+        "9": {
+          "patterns": [
+            {
+              "include": "#type"
             }
           ]
         }
-      },
-      "end": "$"
+      }
     },
-    "member": {
+    "type": {
       "patterns": [
         {
-          "include": "#padding-name"
+          "include": "#value"
         },
         {
-          "match": "^\\S+",
-          "name": "variable.other.member.cvolo-layout"
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?:<[^>]*>)?",
+          "name": "entity.name.type.cvolo-layout"
         },
         {
-          "include": "#type-name"
+          "match": "[\\[\\]]",
+          "name": "punctuation.separator.cvolo-layout"
         }
       ]
-    },
-    "padding-name": {
-      "match": "^<.*>$",
-      "name": "comment.block.padding.cvolo-layout"
-    },
-    "type-name": {
-      "match": "\\b[A-Z][A-Za-z0-9_]*\\b",
-      "name": "entity.name.type.cvolo-layout"
-    },
-    "target": {
-      "match": "^Target:\\s+(\\S+)$",
-      "name": "support.constant.target.cvolo-layout"
     },
     "value": {
       "patterns": [
         {
-          "match": "0x[0-9a-fA-F]+|\\d+",
+          "match": "0x[0-9a-fA-F]+",
+          "name": "constant.numeric.cvolo-layout"
+        },
+        {
+          "match": "\\d+(?:\\.\\d+)?%?",
           "name": "constant.numeric.cvolo-layout"
         },
         {
@@ -123,7 +154,7 @@
           "name": "keyword.other.unit.cvolo-layout"
         },
         {
-          "match": "\\(|\\)",
+          "match": "\\(|\\)|\\[|\\]",
           "name": "punctuation.separator.cvolo-layout"
         }
       ]
