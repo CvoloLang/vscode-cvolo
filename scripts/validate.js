@@ -195,8 +195,8 @@ if (readonlyInclude?.['**/.cvolo/build/**'] !== true) {
 const decorationDefaults = {
   'cvolo.codeLens.references': true,
   'cvolo.codeLens.layout': true,
-  'cvolo.codeLens.fields': false,
-  'cvolo.codeLens.fieldReferences': true,
+  'cvolo.codeLens.fields': true,
+  'cvolo.codeLens.fieldReferences': false,
   'cvolo.codeLens.fieldLayout': true,
   'cvolo.codeLens.nativeInterop': true,
   'cvolo.inlayHints.types': true,

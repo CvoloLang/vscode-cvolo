@@ -14,8 +14,8 @@ const editorIntelligenceSource = fs.readFileSync(path.join(root, 'editor-intelli
 const decorationDefaults = {
   'cvolo.codeLens.references': true,
   'cvolo.codeLens.layout': true,
-  'cvolo.codeLens.fields': false,
-  'cvolo.codeLens.fieldReferences': true,
+  'cvolo.codeLens.fields': true,
+  'cvolo.codeLens.fieldReferences': false,
   'cvolo.codeLens.fieldLayout': true,
   'cvolo.codeLens.nativeInterop': true,
   'cvolo.inlayHints.types': true,
@@ -46,7 +46,7 @@ test('the earlier per-member setting is replaced by the field master gate and it
   const properties = pkg.contributes.configuration.properties;
 
   assert.equal('cvolo.codeLens.members' in properties, false);
-  assert.equal(properties['cvolo.codeLens.fields'].default, false);
+  assert.equal(properties['cvolo.codeLens.fields'].default, true);
   assert.match(properties['cvolo.codeLens.fields'].description, /master switch/i);
   assert.match(properties['cvolo.codeLens.fieldReferences'].description, /cvolo\.codeLens\.fields/);
   assert.match(properties['cvolo.codeLens.fieldLayout'].description, /cvolo\.codeLens\.fields/);

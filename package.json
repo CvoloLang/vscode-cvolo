@@ -175,13 +175,13 @@
         },
         "cvolo.codeLens.fields": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "scope": "window",
           "description": "Master switch for the CodeLens row on every field. Turns both per-field lenses off without changing the type-level lenses."
         },
         "cvolo.codeLens.fieldReferences": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "scope": "window",
           "description": "Show a CodeLens with the number of references to each field. Only used when \"cvolo.codeLens.fields\" is enabled."
         },
