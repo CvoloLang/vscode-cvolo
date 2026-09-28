@@ -145,6 +145,41 @@ function typeLayoutRequestParams(target) {
   };
 }
 
+// A navigation target the server resolved. The extension never resolves a displayed name itself, so
+// a target has to arrive as a URI the editor can open plus the line/character the compiler chose. A
+// value that is not exactly that is not a target: it is dropped rather than guessed at (§19).
+function normalizeTarget(value) {
+  if (!value || typeof value !== 'object'
+      || typeof value.uri !== 'string'
+      || value.uri.trim().length === 0
+      || !value.range
+      || !isPosition(value.range.start)) {
+    return null;
+  }
+
+  return {
+    uri: normalizeUriText(value.uri),
+    position: {
+      line: value.range.start.line,
+      character: value.range.start.character
+    }
+  };
+}
+
+function normalizeMemberNavigation(value) {
+  if (!value || typeof value !== 'object' || typeof value.signature !== 'string' || value.signature.length === 0) {
+    return null;
+  }
+
+  return {
+    signature: value.signature,
+    documentation: typeof value.documentation === 'string' ? value.documentation : null,
+    definition: normalizeTarget(value.definition),
+    typeDefinition: normalizeTarget(value.typeDefinition),
+    nestedLayout: normalizeTarget(value.nestedLayout)
+  };
+}
+
 function normalizeMember(value) {
   if (!value || typeof value !== 'object'
       || typeof value.name !== 'string'
@@ -160,7 +195,8 @@ function normalizeMember(value) {
     typeDisplay: value.typeDisplay,
     offset: value.offset,
     size: value.size,
-    alignment: value.alignment
+    alignment: value.alignment,
+    navigation: normalizeMemberNavigation(value.navigation)
   };
 }
 
@@ -203,6 +239,7 @@ function normalizeTypeLayout(value) {
     elementCount: count(value.elementCount),
     elementSize: count(value.elementSize),
     elementAlignment: count(value.elementAlignment),
+    definition: normalizeTarget(value.definition),
     members: value.members.map(normalizeMember).filter(member => member !== null),
     padding: value.padding.map(normalizePadding).filter(padding => padding !== null)
   };
@@ -253,6 +290,9 @@ function tableRows(layout, options) {
   for (const member of layout.members) {
     rows.push({
       offset: member.offset,
+      kind: 'field',
+      member,
+      padding: null,
       cells: [
         formatByteCount(member.offset, options),
         formatByteCount(member.size, options),
@@ -266,6 +306,9 @@ function tableRows(layout, options) {
   for (const padding of layout.padding) {
     rows.push({
       offset: padding.offset,
+      kind: 'padding',
+      member: null,
+      padding,
       cells: [
         formatByteCount(padding.offset, options),
         formatByteCount(padding.size, options),
@@ -279,7 +322,26 @@ function tableRows(layout, options) {
   return rows.sort((left, right) => left.offset - right.offset);
 }
 
-function formatTable(rows) {
+// The rendered column starts. Every cell but the last is padded to the column width and joined with
+// the separator, so a token's span is the column start plus its own text length; the trailing column
+// carries no padding, which is why the table trims its rows.
+function columnStarts(rows) {
+  const widths = TABLE_HEADERS.map((header, column) => rows.reduce(
+    (width, row) => Math.max(width, row.cells[column].length),
+    header.length
+  ));
+
+  const starts = [];
+  let at = 0;
+  for (const width of widths) {
+    starts.push(at);
+    at += width + COLUMN_SEPARATOR.length;
+  }
+
+  return starts;
+}
+
+function renderTable(rows) {
   const cells = rows.map(row => row.cells);
   const widths = TABLE_HEADERS.map((header, column) => cells.reduce(
     (width, row) => Math.max(width, row[column].length),
@@ -291,32 +353,134 @@ function formatTable(rows) {
     .join(COLUMN_SEPARATOR)
     .trimEnd();
 
-  return [line([...TABLE_HEADERS]), ...cells.map(line)];
+  return {
+    lines: [line([...TABLE_HEADERS]), ...cells.map(line)],
+    starts: columnStarts(rows)
+  };
 }
 
-function formatTypeLayout(value, options) {
+// Renders the layout document and, in the same pass, records where every navigable token sits. The
+// spans are the only thing the definition and hover providers read, so the extension never has to
+// find a token by its text or decide what a token means (§19, §20, §44).
+function renderLayout(value, options) {
   const layout = normalizeTypeLayout(value);
   if (!layout) {
-    throw new TypeError('formatTypeLayout requires a well-formed compiler type layout.');
+    throw new TypeError('renderLayout requires a well-formed compiler type layout.');
   }
 
   const view = layoutOptions(options);
   const facts = layoutFacts(layout, view);
   const labelWidth = facts.reduce((width, [label]) => Math.max(width, label.length + 1), 0) + LABEL_SEPARATOR;
 
-  const lines = [
-    layout.typeDisplay,
-    `Target: ${layout.targetDisplay}`,
-    '',
-    ...facts.map(([label, text]) => `${label}:`.padEnd(labelWidth) + text)
-  ];
+  const lines = [];
+  const tokens = [];
+
+  // The title names the type the reader asked about: it navigates to that type's declaration, and its
+  // hover repeats the summary the compiler already gave rather than deriving anything.
+  lines.push(layout.typeDisplay);
+  tokens.push({
+    kind: 'type',
+    line: 0,
+    start: 0,
+    end: layout.typeDisplay.length,
+    display: layout.typeDisplay,
+    definition: layout.definition,
+    nestedLayout: null,
+    facts: {
+      size: layout.size,
+      alignment: layout.alignment,
+      payloadSize: layout.payloadSize,
+      paddingSize: layout.paddingSize,
+      stride: layout.stride,
+      elementCount: layout.elementCount,
+      elementSize: layout.elementSize,
+      elementAlignment: layout.elementAlignment
+    }
+  });
+
+  lines.push(`Target: ${layout.targetDisplay}`);
+
+  if (facts.length > 0) {
+    lines.push('');
+    for (const [label, text] of facts) {
+      lines.push(`${label}:`.padEnd(labelWidth) + text);
+    }
+  }
 
   const rows = tableRows(layout, view);
   if (rows.length > 0) {
-    lines.push('', ...formatTable(rows));
+    lines.push('');
+    const table = renderTable(rows);
+    const tableStart = lines.length;
+    lines.push(...table.lines);
+
+    const fieldColumn = table.starts[3];
+    const typeColumn = table.starts[4];
+    const byOffset = new Map(layout.members.map(member => [member.offset, member]));
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const line = tableStart + i + 1;
+
+      if (row.kind === 'field') {
+        const member = row.member;
+        const navigation = member.navigation;
+
+        tokens.push({
+          kind: 'field',
+          line,
+          start: fieldColumn,
+          end: fieldColumn + member.name.length,
+          name: member.name,
+          signature: navigation?.signature ?? `${member.typeDisplay} ${layout.typeDisplay}.${member.name}`,
+          documentation: navigation?.documentation ?? null,
+          offset: member.offset,
+          size: member.size,
+          alignment: member.alignment,
+          definition: navigation?.definition ?? null,
+          typeDefinition: navigation?.typeDefinition ?? null,
+          nestedLayout: navigation?.nestedLayout ?? null
+        });
+
+        // A field's type cell navigates to the type's declaration when the compiler resolved one. Its
+        // hover does not quote the field's own size as the type's: those are not the type's numbers.
+        tokens.push({
+          kind: 'type',
+          line,
+          start: typeColumn,
+          end: typeColumn + member.typeDisplay.length,
+          display: member.typeDisplay,
+          definition: navigation?.typeDefinition ?? null,
+          nestedLayout: navigation?.nestedLayout ?? null,
+          facts: null
+        });
+      } else {
+        const padding = row.padding;
+        const label = row.cells[3];
+        const before = padding.kind === 'internal'
+          ? byOffset.get(padding.offset + padding.size)?.name ?? null
+          : null;
+
+        tokens.push({
+          kind: 'padding',
+          line,
+          start: fieldColumn,
+          end: fieldColumn + label.length,
+          paddingKind: padding.kind,
+          offset: padding.offset,
+          size: padding.size,
+          before,
+          alignment: layout.alignment
+        });
+      }
+    }
   }
 
-  return lines.join('\n') + '\n';
+  return { text: lines.join('\n') + '\n', tokens };
+}
+
+function formatTypeLayout(value, options) {
+  return renderLayout(value, options).text;
 }
 
 function layoutDocumentDescriptor(value) {
@@ -351,5 +515,6 @@ module.exports = {
   normalizeTypeLayout,
   parseSourceTarget,
   paddingPercentage,
+  renderLayout,
   typeLayoutRequestParams
 };

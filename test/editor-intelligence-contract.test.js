@@ -108,8 +108,18 @@ test('Show Type Layout is reachable from the palette, the lens and the editor co
 
 test('the layout view is a read-only virtual document owned by the extension', () => {
   assert.match(editorIntelligenceSource, /registerTextDocumentContentProvider\(LAYOUT_SCHEME/);
-  assert.match(editorIntelligenceSource, /documents\.set\(uri\.toString\(\), formatTypeLayout\(layout, layoutViewOptions\(\)\)\)/);
+  assert.match(editorIntelligenceSource, /views\.set\(uri\.toString\(\), \{ text: view\.text, tokens: view\.tokens, options \}\)/);
+  assert.match(editorIntelligenceSource, /renderLayout\(layout, options\)/);
   assert.match(editorIntelligenceSource, /vscode\.ViewColumn\.Beside/);
+});
+
+test('the layout view offers compiler-resolved navigation and hover', () => {
+  assert.match(editorIntelligenceSource, /registerDefinitionProvider\(\{ scheme: LAYOUT_SCHEME \}/);
+  assert.match(editorIntelligenceSource, /registerHoverProvider\(\{ scheme: LAYOUT_SCHEME \}/);
+  assert.match(editorIntelligenceSource, /registerCodeLensProvider\(\{ scheme: LAYOUT_SCHEME \}/);
+  // The extension follows the server's span map; it never looks a token up by its text.
+  assert.doesNotMatch(editorIntelligenceSource, /indexOf\(/);
+  assert.doesNotMatch(editorIntelligenceSource, /LookupType/);
 });
 
 test('the layout view is its own language with a grammar, not plain text', () => {

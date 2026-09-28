@@ -8,10 +8,11 @@ const {
   SHOW_REFERENCES_EDITOR_COMMAND,
   SHOW_TYPE_LAYOUT_COMMAND,
   TYPE_LAYOUT_REQUEST,
-  formatTypeLayout,
+  formatByteCount,
   layoutDocumentDescriptor,
   normalizeTypeLayout,
   parseSourceTarget,
+  renderLayout,
   typeLayoutRequestParams
 } = require('./editor-intelligence-runtime');
 
@@ -68,7 +69,7 @@ function layoutViewOptions() {
   };
 }
 
-async function showTypeLayout(args, getClient, documents, log) {
+async function showTypeLayout(args, getClient, views, log) {
   const target = resolveSourceTarget(args);
   if (!target) {
     void vscode.window.showWarningMessage('Cvolo: open a Cvolo file and place the cursor on a type.');
@@ -95,8 +96,11 @@ async function showTypeLayout(args, getClient, documents, log) {
     return;
   }
 
+  const options = layoutViewOptions();
+  const view = renderLayout(layout, options);
+
   const uri = vscode.Uri.from(layoutDocumentDescriptor(layout));
-  documents.set(uri.toString(), formatTypeLayout(layout, layoutViewOptions()));
+  views.set(uri.toString(), { text: view.text, tokens: view.tokens, options });
 
   log(`show type layout: ${layout.typeDisplay} (${layout.targetDisplay}) for ${target.uri}`);
 
@@ -107,12 +111,160 @@ async function showTypeLayout(args, getClient, documents, log) {
   });
 }
 
+// The token whose span contains the cursor, if any. The server decided what each span means; the
+// extension only asks "is the cursor inside it", so no displayed text is ever parsed (§19).
+function tokenAt(tokens, position) {
+  for (const token of tokens) {
+    if (token.line === position.line && position.character >= token.start && position.character <= token.end) {
+      return token;
+    }
+  }
+
+  return null;
+}
+
+function toLocation(target) {
+  if (!target) {
+    return null;
+  }
+
+  return new vscode.Location(
+    vscode.Uri.parse(target.uri),
+    new vscode.Position(target.position.line, target.position.character)
+  );
+}
+
+function factsBlock(facts) {
+  const width = facts.reduce((longest, [label]) => Math.max(longest, label.length + 1), 0);
+  const body = facts.map(([label, text]) => `${label}:`.padEnd(width) + text).join('\n');
+  return ['```text', body, '```'].join('\n');
+}
+
+function fieldHover(token, options) {
+  const facts = [
+    ['Offset', formatByteCount(token.offset, options, true)],
+    ['Size', formatByteCount(token.size, options, true)],
+    ['Alignment', formatByteCount(token.alignment, options, true)]
+  ];
+
+  const blocks = [`\`\`\`cvolo\n${token.signature}\n\`\`\``, factsBlock(facts)];
+  if (token.documentation) {
+    blocks.push(token.documentation);
+  }
+
+  return blocks.join('\n\n');
+}
+
+function typeHover(token, options) {
+  if (!token.facts) {
+    return `\`\`\`cvolo\n${token.display}\n\`\`\``;
+  }
+
+  const facts = token.facts;
+  const lines = [];
+
+  if (facts.elementCount !== null && facts.elementSize !== null) {
+    lines.push(['Length', String(facts.elementCount)]);
+    lines.push(['Element size', formatByteCount(facts.elementSize, options, true)]);
+    if (facts.stride !== null) {
+      lines.push(['Stride', formatByteCount(facts.stride, options, true)]);
+    }
+    lines.push(['Total size', formatByteCount(facts.size, options, true)]);
+    lines.push(['Alignment', formatByteCount(facts.alignment, options, true)]);
+  } else {
+    lines.push(['Size', formatByteCount(facts.size, options, true)]);
+    lines.push(['Alignment', formatByteCount(facts.alignment, options, true)]);
+  }
+
+  return [`\`\`\`cvolo\n${token.display}\n\`\`\``, factsBlock(lines)].join('\n\n');
+}
+
+function paddingHover(token, options) {
+  if (token.paddingKind === 'tail') {
+    return `${formatByteCount(token.size, options, true)} of tail padding required to preserve the type's ${token.alignment}-byte alignment.`;
+  }
+
+  const before = token.before ? ` before field '${token.before}'` : '';
+  return `${formatByteCount(token.size, options, true)} of alignment padding${before}.`;
+}
+
+function hoverMarkdown(token, options) {
+  switch (token.kind) {
+    case 'field':
+      return fieldHover(token, options);
+    case 'padding':
+      return paddingHover(token, options);
+    default:
+      return typeHover(token, options);
+  }
+}
+
+function registerLayoutProviders(context, views) {
+  context.subscriptions.push(vscode.languages.registerDefinitionProvider({ scheme: LAYOUT_SCHEME }, {
+    provideDefinition: (document, position) => {
+      const view = views.get(document.uri.toString());
+      if (!view) {
+        return null;
+      }
+
+      const token = tokenAt(view.tokens, position);
+      // A padding row describes a gap in the layout; there is nothing in the source for it to open.
+      if (!token || token.kind === 'padding') {
+        return null;
+      }
+
+      return toLocation(token.definition);
+    }
+  }));
+
+  context.subscriptions.push(vscode.languages.registerHoverProvider({ scheme: LAYOUT_SCHEME }, {
+    provideHover: (document, position) => {
+      const view = views.get(document.uri.toString());
+      if (!view) {
+        return null;
+      }
+
+      const token = tokenAt(view.tokens, position);
+      return token ? new vscode.Hover(hoverMarkdown(token, view.options)) : null;
+    }
+  }));
+
+  // A concrete nested aggregate type can open its own layout. The target is the compiler's, so the
+  // lens reuses the same command with the server-resolved location; no name is resolved here (§24).
+  context.subscriptions.push(vscode.languages.registerCodeLensProvider({ scheme: LAYOUT_SCHEME }, {
+    provideCodeLenses: document => {
+      const view = views.get(document.uri.toString());
+      if (!view) {
+        return [];
+      }
+
+      const lenses = [];
+      for (const token of view.tokens) {
+        if (token.kind === 'type' && token.nestedLayout) {
+          lenses.push(new vscode.CodeLens(
+            new vscode.Range(token.line, token.start, token.line, token.end),
+            {
+              title: 'Show Layout',
+              command: SHOW_TYPE_LAYOUT_COMMAND,
+              arguments: [token.nestedLayout.uri, token.nestedLayout.position]
+            }
+          ));
+        }
+      }
+
+      return lenses;
+    }
+  }));
+}
+
 function registerEditorIntelligence(context, { getClient, log = () => {} }) {
-  const documents = new Map();
+  const views = new Map();
 
   context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(LAYOUT_SCHEME, {
-    provideTextDocumentContent: uri => documents.get(uri.toString()) ?? ''
+    provideTextDocumentContent: uri => views.get(uri.toString())?.text ?? ''
   }));
+
+  registerLayoutProviders(context, views);
 
   context.subscriptions.push(vscode.commands.registerCommand(SHOW_REFERENCES_COMMAND, async (...args) => {
     try {
@@ -125,7 +277,7 @@ function registerEditorIntelligence(context, { getClient, log = () => {} }) {
 
   context.subscriptions.push(vscode.commands.registerCommand(SHOW_TYPE_LAYOUT_COMMAND, async (...args) => {
     try {
-      await showTypeLayout(args, getClient, documents, log);
+      await showTypeLayout(args, getClient, views, log);
     } catch (error) {
       log(`show type layout failed: ${formatError(error)}`);
       void vscode.window.showErrorMessage(`Cvolo: showing the type layout failed. ${formatError(error)}`);

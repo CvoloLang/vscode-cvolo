@@ -405,3 +405,111 @@ test('padding is presented as storage information, never as a warning', () => {
   assert.match(text, /<padding>/);
   assert.doesNotMatch(text, /error|warning|invalid/i);
 });
+
+test('rendering the layout returns the same text it always did, plus a token per navigable span', () => {
+  const layout = valueLayout();
+  const view = runtime.renderLayout(layout);
+
+  assert.equal(view.text, runtime.formatTypeLayout(layout));
+  assert.ok(Array.isArray(view.tokens));
+});
+
+test('every token points at the span the compiler numbers were printed in', () => {
+  const view = runtime.renderLayout(valueLayout());
+  const textLines = view.text.split('\n');
+
+  for (const token of view.tokens) {
+    const line = textLines[token.line];
+    assert.ok(line !== undefined, `token on line ${token.line}`);
+    // The token spans exactly the documented text, so a client can highlight it without measuring.
+    assert.ok(token.end > token.start, `${token.kind} token must be non-empty`);
+    assert.ok(token.start >= 0 && token.end <= line.length, `${token.kind} token in range`);
+  }
+});
+
+test('the title names the type and its hover repeats the compiler summary', () => {
+  const view = runtime.renderLayout(valueLayout());
+  const title = view.tokens.find(token => token.kind === 'type' && token.facts !== null);
+
+  assert.equal(title.line, 0);
+  assert.equal(title.display, 'Value');
+  assert.equal(title.end, 'Value'.length);
+  assert.deepEqual(title.facts, {
+    size: 24,
+    alignment: 8,
+    payloadSize: 13,
+    paddingSize: 11,
+    stride: null,
+    elementCount: null,
+    elementSize: null,
+    elementAlignment: null
+  });
+});
+
+test('a field token carries the field facts and never a type definition it was not given', () => {
+  const view = runtime.renderLayout(valueLayout());
+  const field = view.tokens.find(token => token.kind === 'field');
+
+  assert.equal(field.name, 'Kind');
+  assert.equal(field.offset, 0);
+  assert.equal(field.size, 4);
+  assert.equal(field.alignment, 4);
+  // Without a compiler-provided navigation the fallback signature is built from compiler facts only.
+  assert.equal(field.signature, 'int Value.Kind');
+  assert.equal(field.documentation, null);
+  assert.equal(field.definition, null);
+  assert.equal(field.typeDefinition, null);
+  assert.equal(field.nestedLayout, null);
+});
+
+test('a field token maps the compiler-resolved navigation targets it was given', () => {
+  const definition = { uri: 'file:///a.cvl', range: { start: { line: 2, character: 4 } } };
+  const typeDefinition = { uri: 'file:///a.cvl', range: { start: { line: 9, character: 7 } } };
+  const nestedLayout = { uri: 'file:///a.cvl', range: { start: { line: 9, character: 7 } } };
+
+  const view = runtime.renderLayout(valueLayout({
+    members: [{
+      name: 'Payload',
+      typeDisplay: 'Header',
+      offset: 8,
+      size: 8,
+      alignment: 8,
+      navigation: {
+        signature: 'Header Value.Payload',
+        documentation: 'The frame header.',
+        definition,
+        typeDefinition,
+        nestedLayout
+      }
+    }],
+    padding: []
+  }));
+
+  const field = view.tokens.find(token => token.kind === 'field');
+  assert.equal(field.signature, 'Header Value.Payload');
+  assert.equal(field.documentation, 'The frame header.');
+  assert.deepEqual(field.definition, { uri: 'file:///a.cvl', position: { line: 2, character: 4 } });
+  assert.deepEqual(field.typeDefinition, { uri: 'file:///a.cvl', position: { line: 9, character: 7 } });
+  assert.deepEqual(field.nestedLayout, { uri: 'file:///a.cvl', position: { line: 9, character: 7 } });
+
+  // The type cell on the same row navigates to the same resolved type, and it is not the title.
+  const type = view.tokens.filter(token => token.kind === 'type' && token.line === field.line)[0];
+  assert.equal(type.display, 'Header');
+  assert.deepEqual(type.definition, { uri: 'file:///a.cvl', position: { line: 9, character: 7 } });
+  assert.equal(type.facts, null);
+});
+
+test('a padding token names the field the internal padding precedes, and nothing for tail padding', () => {
+  const view = runtime.renderLayout(valueLayout());
+
+  const internal = view.tokens.find(token => token.kind === 'padding' && token.paddingKind === 'internal');
+  assert.equal(internal.offset, 4);
+  assert.equal(internal.size, 4);
+  // The member that starts at 4 + 4 = 8 is Payload.
+  assert.equal(internal.before, 'Payload');
+  assert.equal(internal.alignment, 8);
+
+  const tail = view.tokens.find(token => token.kind === 'padding' && token.paddingKind === 'tail');
+  assert.equal(tail.before, null);
+  assert.equal(tail.alignment, 8);
+});

@@ -363,8 +363,17 @@ if (!extensionSource.includes("registerEditorIntelligence(context")) {
 if (!editorIntelligenceSource.includes("require('./editor-intelligence-runtime')")) {
   fail('editor-intelligence.js must delegate to editor-intelligence-runtime.js');
 }
-if (!editorIntelligenceSource.includes('formatTypeLayout(layout, layoutViewOptions())')) {
+if (!editorIntelligenceSource.includes('renderLayout(layout, options)')
+    || !editorIntelligenceSource.includes('layoutViewOptions()')) {
   fail('editor-intelligence.js must render layouts with the pure runtime formatter and the reader\'s layout settings');
+}
+if (!editorIntelligenceSource.includes('registerDefinitionProvider')
+    || !editorIntelligenceSource.includes('registerHoverProvider')) {
+  fail('editor-intelligence.js must register the layout definition and hover providers');
+}
+
+if (!editorIntelligenceSource.includes('registerCodeLensProvider')) {
+  fail('editor-intelligence.js must register a layout code lens provider for nested Show Layout');
 }
 if (!/getConfiguration\('cvolo'\)\.get\('layout'/.test(editorIntelligenceSource)) {
   fail('editor-intelligence.js must read the cvolo.layout settings for the viewer');
