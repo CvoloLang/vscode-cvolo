@@ -44,6 +44,15 @@
           ".cvl"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "cvolo-layout",
+        "aliases": [
+          "Cvolo layout"
+        ],
+        "extensions": [
+          ".cvlayout"
+        ]
       }
     ],
     "grammars": [
@@ -51,6 +60,11 @@
         "language": "cvolo",
         "scopeName": "source.cvolo",
         "path": "./syntaxes/cvolo.tmLanguage.json"
+      },
+      {
+        "language": "cvolo-layout",
+        "scopeName": "source.cvolo-layout",
+        "path": "./syntaxes/cvolo-layout.tmLanguage.json"
       }
     ],
     "semanticTokenScopes": [

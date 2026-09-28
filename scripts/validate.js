@@ -271,6 +271,68 @@ for (const [key, expected] of Object.entries(layoutViewDefaults)) {
   }
 }
 
+// The layout view is a presentation format, so it needs its own language id: without one the editor
+// falls back to plain text and the table loses every scope a theme would otherwise colour.
+const layoutLanguage = (pkg.contributes?.languages ?? []).find(language => language.id === 'cvolo-layout');
+if (!layoutLanguage) {
+  fail('cvolo-layout language must be contributed');
+} else {
+  if (!Array.isArray(layoutLanguage.extensions) || !layoutLanguage.extensions.includes('.cvlayout')) {
+    fail('cvolo-layout language must own the .cvlayout extension');
+  }
+  if (layoutLanguage.configuration !== undefined) {
+    fail('cvolo-layout is a generated read-only view and must not claim a language configuration');
+  }
+}
+
+const layoutGrammar = (pkg.contributes?.grammars ?? []).find(grammar => grammar.language === 'cvolo-layout');
+if (!layoutGrammar) {
+  fail('cvolo-layout grammar must be contributed');
+} else {
+  if (layoutGrammar.scopeName !== 'source.cvolo-layout') {
+    fail('cvolo-layout grammar scopeName must be source.cvolo-layout');
+  }
+  if (layoutGrammar.path !== './syntaxes/cvolo-layout.tmLanguage.json') {
+    fail('cvolo-layout grammar path must be ./syntaxes/cvolo-layout.tmLanguage.json');
+  }
+}
+
+// The grammar has to name the scopes the viewer actually emits, and it must not carry a colour of its
+// own: correctness and readability belong to the reader's theme, including the high contrast ones.
+const layoutGrammarPath = path.join(root, 'syntaxes', 'cvolo-layout.tmLanguage.json');
+if (!fs.existsSync(layoutGrammarPath)) {
+  fail('syntaxes/cvolo-layout.tmLanguage.json must exist');
+} else {
+  let layoutGrammarSource = '';
+  try {
+    layoutGrammarSource = fs.readFileSync(layoutGrammarPath, 'utf8');
+  } catch {
+    fail('syntaxes/cvolo-layout.tmLanguage.json must be readable');
+  }
+
+  const scopes = [
+    'entity.name.type.cvolo-layout',
+    'keyword.other.layout.cvolo-layout',
+    'support.constant.target.cvolo-layout',
+    'constant.numeric.cvolo-layout',
+    'keyword.other.unit.cvolo-layout',
+    'markup.heading.cvolo-layout',
+    'variable.other.member.cvolo-layout',
+    'comment.block.padding.cvolo-layout'
+  ];
+  for (const scope of scopes) {
+    if (!layoutGrammarSource.includes(scope)) {
+      fail(`cvolo-layout grammar must scope ${scope}`);
+    }
+  }
+  if (/"#[0-9a-fA-F]{3,8}"/.test(layoutGrammarSource)) {
+    fail('cvolo-layout grammar must not hardcode a colour');
+  }
+  if (!layoutGrammarSource.includes('"scopeName": "source.cvolo-layout"')) {
+    fail('cvolo-layout grammar must declare the source.cvolo-layout scope');
+  }
+}
+
 const contributedCommands = pkg.contributes?.commands ?? [];
 if (!contributedCommands.some(command => command.command === 'cvolo.showTypeLayout' && command.title === 'Cvolo: Show Type Layout')) {
   fail('cvolo.showTypeLayout must be contributed as Cvolo: Show Type Layout');
@@ -301,8 +363,11 @@ if (!extensionSource.includes("registerEditorIntelligence(context")) {
 if (!editorIntelligenceSource.includes("require('./editor-intelligence-runtime')")) {
   fail('editor-intelligence.js must delegate to editor-intelligence-runtime.js');
 }
-if (!editorIntelligenceSource.includes('formatTypeLayout(layout)')) {
-  fail('editor-intelligence.js must render layouts with the pure runtime formatter');
+if (!editorIntelligenceSource.includes('formatTypeLayout(layout, layoutViewOptions())')) {
+  fail('editor-intelligence.js must render layouts with the pure runtime formatter and the reader\'s layout settings');
+}
+if (!/getConfiguration\('cvolo'\)\.get\('layout'/.test(editorIntelligenceSource)) {
+  fail('editor-intelligence.js must read the cvolo.layout settings for the viewer');
 }
 if (!editorIntelligenceSource.includes('sendRequest(TYPE_LAYOUT_REQUEST')) {
   fail('editor-intelligence.js must ask the server for compiler layout facts');

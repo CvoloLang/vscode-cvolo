@@ -56,6 +56,18 @@ async function showReferences(args, log) {
   await vscode.commands.executeCommand(SHOW_REFERENCES_EDITOR_COMMAND, uri, position, results);
 }
 
+// The two viewer settings, read at the moment the document is written. The notation and the padding
+// share are presentation choices about numbers the compiler already reported, so they are read here
+// and never carried through the language server request.
+function layoutViewOptions() {
+  const layout = vscode.workspace.getConfiguration('cvolo').get('layout', {});
+
+  return {
+    offsetFormat: layout.offsetFormat,
+    showPaddingPercentage: layout.showPaddingPercentage
+  };
+}
+
 async function showTypeLayout(args, getClient, documents, log) {
   const target = resolveSourceTarget(args);
   if (!target) {
@@ -84,7 +96,7 @@ async function showTypeLayout(args, getClient, documents, log) {
   }
 
   const uri = vscode.Uri.from(layoutDocumentDescriptor(layout));
-  documents.set(uri.toString(), formatTypeLayout(layout));
+  documents.set(uri.toString(), formatTypeLayout(layout, layoutViewOptions()));
 
   log(`show type layout: ${layout.typeDisplay} (${layout.targetDisplay}) for ${target.uri}`);
 

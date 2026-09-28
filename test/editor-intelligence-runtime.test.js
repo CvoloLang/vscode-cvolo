@@ -262,17 +262,146 @@ test('the layout document is a read-only virtual document keyed by type and targ
   assert.equal(runtime.LAYOUT_SCHEME, 'cvolo-layout');
   assert.deepEqual(runtime.layoutDocumentDescriptor(valueLayout()), {
     scheme: 'cvolo-layout',
-    path: '/Value',
-    query: `target=${TARGET}`
+    path: '/Layout.cvlayout',
+    query: `type=Value&target=${TARGET}`
   });
 
   const otherTarget = runtime.layoutDocumentDescriptor(valueLayout({ targetDisplay: 'aarch64-pc-windows-msvc' }));
-  assert.notEqual(otherTarget.query, `target=${TARGET}`);
+  assert.notEqual(otherTarget.query, `type=Value&target=${TARGET}`);
 });
 
-test('display text is sanitized into a URI path segment', () => {
-  assert.equal(runtime.sanitizeSegment('Entry[32]'), 'Entry[32]');
-  assert.equal(runtime.sanitizeSegment('A B'), 'A B');
-  assert.equal(runtime.sanitizeSegment('A?B#C'), 'A_B_C');
-  assert.equal(runtime.layoutDocumentDescriptor(valueLayout({ typeDisplay: 'A?B' })).path, '/A_B');
+test('the type name is escaped as a query value instead of a URI path', () => {
+  // The document name is fixed, so a type whose display name contains a separator is carried in the
+  // query, where it cannot be read as a path segment or split the URI.
+  const descriptor = runtime.layoutDocumentDescriptor(valueLayout({ typeDisplay: 'A?B#C Entry[32]' }));
+
+  assert.equal(descriptor.path, '/Layout.cvlayout');
+  assert.equal(descriptor.query, `type=A%3FB%23C%20Entry%5B32%5D&target=${TARGET}`);
+});
+
+test('the offset notation applies to every byte count and never to a value it was not given', () => {
+  const layout = valueLayout({
+    size: 24,
+    alignment: 8,
+    payloadSize: 13,
+    paddingSize: 11,
+    members: [
+      { name: 'Kind', typeDisplay: 'int', offset: 0, size: 4, alignment: 4 },
+      { name: 'Flags', typeDisplay: 'byte', offset: 24, size: 1, alignment: 1 }
+    ],
+    padding: [{ offset: 4, size: 4, kind: 'internal' }, { offset: 5, size: 3, kind: 'tail' }]
+  });
+
+  // The columns are padded to line up, so a row is compared as its cells rather than as a fixed
+  // number of spaces: what matters is which value sits in which column. A cell is one number, and the
+  // combined notation adds a second one in parentheses, so a cell is a token or a token plus a
+  // bracketed one - otherwise the extra space would be read as a column separator.
+  const CELL = /(?:\S+ \([^)]*\)|\S+)/g;
+  const rows = text => text
+    .split('\n')
+    .slice(text.split('\n').findIndex(line => line.startsWith('Offset')))
+    .filter(line => /^\S/.test(line))
+    .map(line => line.match(CELL));
+  const fact = (text, label) => text.split('\n').find(line => line.startsWith(`${label}:`));
+
+  const decimal = runtime.formatTypeLayout(layout, { offsetFormat: 'decimal' });
+  assert.equal(fact(decimal, 'Size'), 'Size:       24 bytes');
+  assert.deepEqual(rows(decimal), [
+    ['Offset', 'Size', 'Align', 'Field', 'Type'],
+    ['0', '4', '4', 'Kind', 'int'],
+    ['4', '4', '-', '<padding>'],
+    ['5', '3', '-', '<tail', 'padding>'],
+    ['24', '1', '1', 'Flags', 'byte']
+  ]);
+
+  // The same numbers, another radix. The unit is dropped because 0x08 is a byte count already and
+  // 0x08B would read as one longer hex number.
+  const hex = runtime.formatTypeLayout(layout, { offsetFormat: 'hex' });
+  assert.equal(fact(hex, 'Size'), 'Size:       0x18');
+  assert.deepEqual(rows(hex), [
+    ['Offset', 'Size', 'Align', 'Field', 'Type'],
+    ['0x00', '0x04', '0x04', 'Kind', 'int'],
+    ['0x04', '0x04', '-', '<padding>'],
+    ['0x05', '0x03', '-', '<tail', 'padding>'],
+    ['0x18', '0x01', '0x01', 'Flags', 'byte']
+  ]);
+
+  const both = runtime.formatTypeLayout(layout, { offsetFormat: 'decimalAndHex' });
+  assert.equal(fact(both, 'Size'), 'Size:       24 bytes (0x18)');
+  assert.deepEqual(rows(both), [
+    ['Offset', 'Size', 'Align', 'Field', 'Type'],
+    ['0 (0x00)', '4 (0x04)', '4 (0x04)', 'Kind', 'int'],
+    ['4 (0x04)', '4 (0x04)', '-', '<padding>'],
+    ['5 (0x05)', '3 (0x03)', '-', '<tail', 'padding>'],
+    ['24 (0x18)', '1 (0x01)', '1 (0x01)', 'Flags', 'byte']
+  ]);
+});
+
+test('a table row is never reordered by the notation it is printed in', () => {
+  // The table is the order of the bytes. A hexadecimal offset must not sort as text, or a layout
+  // would read 0x10 before 0x08.
+  const layout = valueLayout({
+    size: 32,
+    members: [
+      { name: 'Last', typeDisplay: 'int', offset: 16, size: 4, alignment: 4 },
+      { name: 'First', typeDisplay: 'int', offset: 0, size: 4, alignment: 4 },
+      { name: 'Middle', typeDisplay: 'int', offset: 8, size: 4, alignment: 4 }
+    ],
+    padding: []
+  });
+
+  for (const offsetFormat of ['decimal', 'hex', 'decimalAndHex']) {
+    const names = runtime
+      .formatTypeLayout(layout, { offsetFormat })
+      .split('\n')
+      .filter(line => /^(?:0x)?\d/.test(line))
+      .map(line => line.match(/(?:\S+ \([^)]*\)|\S+)/g)[3]);
+
+    assert.deepEqual(names, ['First', 'Middle', 'Last'], offsetFormat);
+  }
+});
+
+test('a hex column keeps its width as the layout grows', () => {
+  const small = runtime.formatByteCount(8, { offsetFormat: 'hex' });
+  const large = runtime.formatByteCount(4096, { offsetFormat: 'hex' });
+
+  assert.equal(small, '0x08');
+  assert.equal(large, '0x1000');
+});
+
+test('a notation the extension does not know falls back to decimal rather than guessing', () => {
+  assert.deepEqual(runtime.OFFSET_FORMATS, ['decimal', 'hex', 'decimalAndHex']);
+  assert.equal(runtime.formatByteCount(24, { offsetFormat: 'binary' }), '24');
+  assert.equal(runtime.formatByteCount(24, { offsetFormat: 24 }), '24');
+  assert.equal(runtime.formatByteCount(24, undefined), '24');
+  assert.deepEqual(runtime.DEFAULT_LAYOUT_OPTIONS, { offsetFormat: 'decimal', showPaddingPercentage: false });
+});
+
+test('the padding share is a ratio of two compiler facts and never divides by zero', () => {
+  const layout = valueLayout({ size: 24, paddingSize: 11 });
+
+  assert.equal(runtime.paddingPercentage(11, 24).toFixed(1), '45.8');
+  assert.equal(runtime.paddingPercentage(0, 24).toFixed(1), '0.0');
+  assert.equal(runtime.paddingPercentage(0, 0), null);
+  assert.equal(runtime.paddingPercentage(4, 0), null);
+  assert.equal(runtime.paddingPercentage(null, 24), null);
+  assert.equal(runtime.paddingPercentage(4, null), null);
+
+  const withShare = runtime.formatTypeLayout(layout, { showPaddingPercentage: true });
+  assert.match(withShare, /^Padding: {4}11 bytes \(45\.8%\)$/m);
+
+  // A type with no size has no share to report, so the line keeps the byte count alone instead of
+  // claiming a percentage of nothing.
+  const unsized = runtime.formatTypeLayout(valueLayout({ size: 0, paddingSize: 0 }), { showPaddingPercentage: true });
+  assert.match(unsized, /^Padding: {4}0 bytes$/m);
+  assert.doesNotMatch(unsized, /%/);
+  assert.doesNotMatch(runtime.formatTypeLayout(layout), /%/);
+});
+
+test('padding is presented as storage information, never as a warning', () => {
+  const text = runtime.formatTypeLayout(valueLayout({ padding: [{ offset: 4, size: 4, kind: 'internal' }] }));
+
+  assert.match(text, /^4 {7}4 {5}- {6}<padding>$/m);
+  assert.match(text, /<padding>/);
+  assert.doesNotMatch(text, /error|warning|invalid/i);
 });

@@ -108,8 +108,41 @@ test('Show Type Layout is reachable from the palette, the lens and the editor co
 
 test('the layout view is a read-only virtual document owned by the extension', () => {
   assert.match(editorIntelligenceSource, /registerTextDocumentContentProvider\(LAYOUT_SCHEME/);
-  assert.match(editorIntelligenceSource, /documents\.set\(uri\.toString\(\), formatTypeLayout\(layout\)\)/);
+  assert.match(editorIntelligenceSource, /documents\.set\(uri\.toString\(\), formatTypeLayout\(layout, layoutViewOptions\(\)\)\)/);
   assert.match(editorIntelligenceSource, /vscode\.ViewColumn\.Beside/);
+});
+
+test('the layout view is its own language with a grammar, not plain text', () => {
+  const layout = pkg.contributes.languages.find(language => language.id === 'cvolo-layout');
+  assert.ok(layout, 'cvolo-layout language must be contributed');
+  assert.deepEqual(layout.extensions, ['.cvlayout']);
+
+  const grammar = pkg.contributes.grammars.find(item => item.language === 'cvolo-layout');
+  assert.equal(grammar.scopeName, 'source.cvolo-layout');
+  assert.equal(grammar.path, './syntaxes/cvolo-layout.tmLanguage.json');
+
+  const source = fs.readFileSync(path.join(root, grammar.path), 'utf8');
+  assert.equal(JSON.parse(source).scopeName, 'source.cvolo-layout');
+  // The scopes the viewer emits, so an arbitrary theme has something to colour. Padding is storage
+  // information rather than a problem, and says so with a comment-like scope.
+  for (const scope of [
+    'entity.name.type.cvolo-layout',
+    'keyword.other.layout.cvolo-layout',
+    'support.constant.target.cvolo-layout',
+    'constant.numeric.cvolo-layout',
+    'keyword.other.unit.cvolo-layout',
+    'markup.heading.cvolo-layout',
+    'variable.other.member.cvolo-layout',
+    'comment.block.padding.cvolo-layout'
+  ]) {
+    assert.ok(source.includes(scope), scope);
+  }
+  assert.doesNotMatch(source, /"#[0-9a-fA-F]{3,8}"/);
+});
+
+test('the viewer settings are read for the view only, never through the server', () => {
+  assert.match(editorIntelligenceSource, /getConfiguration\('cvolo'\)\.get\('layout'/);
+  assert.doesNotMatch(editorIntelligenceSource, /offsetFormat:\s*'(decimal|hex)'/);
 });
 
 test('the layout view renders compiler facts and never computes them', () => {
