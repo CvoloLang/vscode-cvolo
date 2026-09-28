@@ -41,6 +41,24 @@ function isCount(value) {
   return Number.isInteger(value) && value >= 0;
 }
 
+// A source target names a document the editor has to open before it can do anything with it, so the
+// value has to be a URI the editor can resolve. A Windows path is not one: parsed as a URI it looks
+// like a "d:" scheme, and the editor then refuses to resolve the resource. A drive letter is
+// therefore a path, not a scheme, and a value with no scheme at all is read as a file — which is
+// also what an older server that sent the document's local path instead of its URI still means.
+function isUriText(value) {
+  if (/^[A-Za-z]:[\\/]/.test(value)) {
+    return false;
+  }
+
+  return /^[A-Za-z][A-Za-z0-9+.-]*:/.test(value);
+}
+
+function normalizeUriText(value) {
+  const text = value.trim();
+  return isUriText(text) ? text : `file:///${text.replace(/\\/g, '/').replace(/^\/+/, '')}`;
+}
+
 function count(value) {
   return isCount(value) ? value : null;
 }
@@ -59,7 +77,7 @@ function parseSourceTarget(args) {
   }
 
   return {
-    uri,
+    uri: normalizeUriText(uri),
     position: {
       line: position.line,
       character: position.character

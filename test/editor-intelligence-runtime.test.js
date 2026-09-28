@@ -53,6 +53,38 @@ test('malformed command arguments are rejected instead of guessed', () => {
   assert.equal(runtime.parseSourceTarget(['file:///a/b.cvl', { line: 0, character: 1.5 }]), null);
 });
 
+test('a document path is read as a file the editor can resolve', () => {
+  // A Windows path parsed as a URI looks like a "d:" scheme, and the editor then cannot resolve it.
+  assert.deepEqual(runtime.parseSourceTarget(['d:\\dir\\file.cvl', { line: 1, character: 2 }]), {
+    uri: 'file:///d:/dir/file.cvl',
+    position: { line: 1, character: 2 }
+  });
+
+  assert.deepEqual(runtime.parseSourceTarget(['/usr/src/file.cvl', { line: 0, character: 0 }]), {
+    uri: 'file:///usr/src/file.cvl',
+    position: { line: 0, character: 0 }
+  });
+
+  assert.deepEqual(runtime.parseSourceTarget(['  d:\\dir\\file.cvl  ', { line: 0, character: 0 }]), {
+    uri: 'file:///d:/dir/file.cvl',
+    position: { line: 0, character: 0 }
+  });
+});
+
+test('a document URI is passed through unchanged', () => {
+  for (const uri of [
+    'file:///d%3A/Programming/Cvolo/libraries/Base/Memory/Layout.cvl',
+    'file:///a/b.cvl',
+    'untitled:Untitled-1',
+    'cvolo-layout:/Layout?target=x'
+  ]) {
+    assert.deepEqual(runtime.parseSourceTarget([uri, { line: 0, character: 0 }]), {
+      uri,
+      position: { line: 0, character: 0 }
+    });
+  }
+});
+
 test('the type layout request carries only the document and position', () => {
   assert.deepEqual(
     runtime.typeLayoutRequestParams({ uri: 'file:///a/b.cvl', position: { line: 2, character: 4 } }),
