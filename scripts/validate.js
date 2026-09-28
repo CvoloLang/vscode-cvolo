@@ -76,6 +76,8 @@ const languageConfiguration = readJson('language-configuration.json');
 const lock = readJson('package-lock.json');
 const extensionSource = readText('extension.js');
 const runtimeSource = readText('extension-runtime.js');
+const editorIntelligenceSource = readText('editor-intelligence.js');
+const editorIntelligenceRuntimeSource = readText('editor-intelligence-runtime.js');
 const vscodeIgnore = readText('.vscodeignore');
 
 if (pkg.engines?.vscode !== '^1.82.0') {
@@ -188,6 +190,92 @@ if (Object.prototype.hasOwnProperty.call(properties, 'cvolo.server.arguments')) 
 const readonlyInclude = pkg.contributes?.configurationDefaults?.['files.readonlyInclude'];
 if (readonlyInclude?.['**/.cvolo/build/**'] !== true) {
   fail('files.readonlyInclude default must mark **/.cvolo/build/** read-only');
+}
+
+const decorationDefaults = {
+  'cvolo.codeLens.references': true,
+  'cvolo.codeLens.layout': true,
+  'cvolo.codeLens.members': false,
+  'cvolo.codeLens.nativeInterop': true,
+  'cvolo.inlayHints.types': true,
+  'cvolo.inlayHints.parameters': true,
+  'cvolo.inlayHints.receiverMutability': true,
+  'cvolo.inlayHints.layout': false,
+  'cvolo.inlayHints.enumValues': false,
+  'cvolo.inlayHints.genericArguments': false
+};
+
+for (const [key, expected] of Object.entries(decorationDefaults)) {
+  const setting = properties[key];
+  if (!setting) {
+    fail(`${key} setting is required`);
+    continue;
+  }
+  if (setting.type !== 'boolean' || setting.default !== expected) {
+    fail(`${key} must be a boolean with default ${expected}`);
+  }
+  if (setting.scope !== 'window') {
+    fail(`${key} must have window scope`);
+  }
+  if (typeof setting.description !== 'string' || !setting.description.trim()) {
+    fail(`${key} must have a non-empty description`);
+  }
+}
+
+const contributedCommands = pkg.contributes?.commands ?? [];
+if (!contributedCommands.some(command => command.command === 'cvolo.showTypeLayout' && command.title === 'Cvolo: Show Type Layout')) {
+  fail('cvolo.showTypeLayout must be contributed as Cvolo: Show Type Layout');
+}
+if (contributedCommands.some(command => command.command === 'cvolo.showReferences')) {
+  fail('cvolo.showReferences is a CodeLens bridge and must not be contributed as a palette command');
+}
+
+const paletteEntries = pkg.contributes?.menus?.commandPalette ?? [];
+if (!paletteEntries.some(entry => entry.command === 'cvolo.showTypeLayout' && entry.when === 'editorLangId == cvolo')) {
+  fail('cvolo.showTypeLayout must be available in the command palette for Cvolo editors');
+}
+if (paletteEntries.some(entry => entry.command === 'cvolo.showReferences')) {
+  fail('cvolo.showReferences must not be offered in the command palette');
+}
+
+const contextEntries = pkg.contributes?.menus?.['editor/context'] ?? [];
+if (!contextEntries.some(entry => entry.command === 'cvolo.showTypeLayout' && entry.when === 'editorLangId == cvolo')) {
+  fail('cvolo.showTypeLayout must be offered from the Cvolo editor context menu');
+}
+
+if (!/synchronize:\s*\{\s*configurationSection:\s*'cvolo'\s*\}/s.test(extensionSource)) {
+  fail('the LanguageClient must synchronize the cvolo configuration section so decoration settings need no restart');
+}
+if (!extensionSource.includes("registerEditorIntelligence(context")) {
+  fail('editor intelligence wiring must be registered during activation');
+}
+if (!editorIntelligenceSource.includes("require('./editor-intelligence-runtime')")) {
+  fail('editor-intelligence.js must delegate to editor-intelligence-runtime.js');
+}
+if (!editorIntelligenceSource.includes('formatTypeLayout(layout)')) {
+  fail('editor-intelligence.js must render layouts with the pure runtime formatter');
+}
+if (!editorIntelligenceSource.includes('sendRequest(TYPE_LAYOUT_REQUEST')) {
+  fail('editor-intelligence.js must ask the server for compiler layout facts');
+}
+if (!/executeCommand\(REFERENCE_PROVIDER_COMMAND/.test(editorIntelligenceSource)) {
+  fail('cvolo.showReferences must delegate to the normal reference provider command');
+}
+if (!/executeCommand\(SHOW_REFERENCES_EDITOR_COMMAND/.test(editorIntelligenceSource)) {
+  fail('cvolo.showReferences must open the normal references editor command');
+}
+if (/parse(Source|Text)\s*\(/.test(editorIntelligenceRuntimeSource)) {
+  fail('editor-intelligence-runtime.js must not parse Cvolo source');
+}
+
+for (const relative of ['extension.js', 'editor-intelligence.js', 'editor-intelligence-runtime.js', 'extension-runtime.js']) {
+  if (!pkg.scripts?.check?.includes(`node --check ${relative}`)) {
+    fail(`package.json check script must syntax check ${relative}`);
+  }
+}
+
+if (/require\(['"]vscode['"]\)/.test(editorIntelligenceRuntimeSource)) {
+  fail('editor-intelligence-runtime.js must be Node-loadable without the VS Code extension-host API');
 }
 
 if (!extensionSource.match(/new LanguageClient\(\s*['"]cvolo['"]/s)) {

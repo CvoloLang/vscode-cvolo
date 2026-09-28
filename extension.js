@@ -5,6 +5,7 @@ const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient
 const { LifecycleController, resolveServerCommand } = require('./extension-runtime');
 const { registerCvoloBraceColorizer } = require('./brace-colorizer');
 const { registerCvoloSyntaxColorizer } = require('./syntax-colorizer');
+const { registerEditorIntelligence } = require('./editor-intelligence');
 
 let lifecycle;
 let outputChannel;
@@ -68,6 +69,9 @@ async function createAndStartClient(context) {
     },
     outputChannel,
     revealOutputChannelOn: RevealOutputChannelOn.Error,
+    synchronize: {
+      configurationSection: 'cvolo'
+    },
     connectionOptions: {
       maxRestartCount: 0
     }
@@ -126,6 +130,10 @@ async function activate(context) {
 
   registerCvoloBraceColorizer(context);
   registerCvoloSyntaxColorizer(context);
+  registerEditorIntelligence(context, {
+    getClient: () => lifecycle?.client,
+    log: message => outputChannel?.appendLine(`[client] ${message}`)
+  });
 
   lifecycle = new LifecycleController({
     startClient: () => createAndStartClient(context),

@@ -3,6 +3,7 @@
   "displayName": "Cvolo",
   "description": "Cvolo language support for Visual Studio Code via the standalone Cvolo Language Server.",
   "version": "0.1.0",
+  "icon": "images/cvolologox512.png",
   "license": "MIT",
   "engines": {
     "vscode": "^1.82.0"
@@ -145,6 +146,66 @@
           "default": "off",
           "scope": "window",
           "description": "Trace communication between VS Code and the Cvolo Language Server."
+        },
+        "cvolo.codeLens.references": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Show a CodeLens with the number of references to each declaration. Clicking it opens the normal references view."
+        },
+        "cvolo.codeLens.layout": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Show a CodeLens with the compiler-computed size, alignment and padding of each concrete type. Clicking it opens the detailed type layout."
+        },
+        "cvolo.codeLens.members": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "description": "Also show CodeLens for every member of a type instead of only for the type itself."
+        },
+        "cvolo.codeLens.nativeInterop": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Show CodeLens for native import/export declarations that carry Cvolo Compiler ABI information."
+        },
+        "cvolo.inlayHints.types": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Show inferred type hints for declarations that have no explicit type."
+        },
+        "cvolo.inlayHints.parameters": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Show parameter name hints at call sites."
+        },
+        "cvolo.inlayHints.receiverMutability": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Show receiver mutability hints for methods that borrow or mutate their receiver."
+        },
+        "cvolo.inlayHints.layout": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "description": "Show field layout hints such as offset and size inside type bodies."
+        },
+        "cvolo.inlayHints.enumValues": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "description": "Show the compiler-assigned numeric value of enum variants."
+        },
+        "cvolo.inlayHints.genericArguments": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "description": "Show inferred generic arguments at call and construction sites."
         }
       }
     },
@@ -157,10 +218,29 @@
       {
         "command": "cvolo.restartLanguageServer",
         "title": "Cvolo: Restart Language Server"
+      },
+      {
+        "command": "cvolo.showTypeLayout",
+        "title": "Cvolo: Show Type Layout"
       }
-    ]
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "cvolo.showTypeLayout",
+          "when": "editorLangId == cvolo"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "cvolo.showTypeLayout",
+          "when": "editorLangId == cvolo",
+          "group": "navigation@100"
+        }
+      ]
+    }
   },
   "scripts": {
-    "check": "node --check extension.js && node --check extension-runtime.js && node --check brace-colorizer.js && node --check brace-colorizer-runtime.js && node --check syntax-colorizer.js && node --check syntax-colorizer-runtime.js && node --check scripts/validate.js && node scripts/validate.js && node --test"
+    "check": "node --check extension.js && node --check extension-runtime.js && node --check editor-intelligence.js && node --check editor-intelligence-runtime.js && node --check brace-colorizer.js && node --check brace-colorizer-runtime.js && node --check syntax-colorizer.js && node --check syntax-colorizer-runtime.js && node --check scripts/validate.js && node scripts/validate.js && node --test"
   }
 }

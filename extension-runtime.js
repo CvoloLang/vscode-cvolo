@@ -97,6 +97,10 @@ class LifecycleController {
     return this._client !== undefined;
   }
 
+  get client() {
+    return this._client;
+  }
+
   _enqueue(label, operation) {
     const result = this._tail
       .catch(() => undefined)
