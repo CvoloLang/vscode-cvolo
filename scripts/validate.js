@@ -100,6 +100,14 @@ if (!sameArray(pkg.extensionKind, ['workspace'])) {
   fail('extensionKind must be exactly ["workspace"]');
 }
 
+const bundledLanguageServer = pkg.bundledLanguageServer;
+if (!bundledLanguageServer
+    || bundledLanguageServer.version !== '0.0.21-alpha.0'
+    || bundledLanguageServer.compilerCompatibilityLine !== '0.0.21'
+    || bundledLanguageServer.toolingVersion !== '0.0.21.0') {
+  fail('bundledLanguageServer must record LSP version 0.0.21-alpha.0, compiler compatibility line 0.0.21, and tooling 0.0.21.0');
+}
+
 const virtualWorkspaces = pkg.capabilities?.virtualWorkspaces;
 if (virtualWorkspaces?.supported !== false) {
   fail('capabilities.virtualWorkspaces.supported must be false');
