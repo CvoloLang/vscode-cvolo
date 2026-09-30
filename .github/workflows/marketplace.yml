@@ -205,7 +205,11 @@ jobs:
       - name: Publish to the Visual Studio Marketplace (OIDC)
         run: |
           set -euo pipefail
-          npx --yes @vscode/vsce@4.0.0 publish \
+          # 4.0.0's OIDC exchange omits the api-version query parameter and
+          # authenticates with "Bearer" instead of "FederatedToken", so the
+          # Marketplace rejects the token request with HTTP 400. 4.0.1-1 is the
+          # first published version that performs the exchange correctly.
+          npx --yes @vscode/vsce@4.0.1-1 publish \
             --oidc \
             --pre-release \
             --packagePath \
