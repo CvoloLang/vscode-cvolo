@@ -7,3 +7,8 @@ tests/**
 .gitignore
 README.md
 server/README.md
+.folder2md_ignore
+run.ps1
+vscode extension.md
+images/Cvolo Logo x512 CommunityToolKit.png
+images/Cvolo Logo x512.ico

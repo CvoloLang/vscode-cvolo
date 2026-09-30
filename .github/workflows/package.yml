@@ -1,0 +1,88 @@
+name: Package VSIX
+
+# Builds the platform-specific VSIX artifacts for the Cvolo VS Code extension.
+# This workflow performs NO Marketplace publishing and uses NO Marketplace
+# credentials. It is the deterministic packaging contract: each leg stages the
+# exact official Language Server bundle for one RID and packages one VSIX.
+on:
+  workflow_dispatch:
+    inputs:
+      languageServerVersion:
+        description: Official Language Server release version to bundle (e.g. 0.1.0-alpha.11)
+        required: true
+        default: 0.1.0-alpha.11
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: win32-x64
+            rid: win-x64
+          - target: linux-x64
+            rid: linux-x64
+          - target: linux-arm64
+            rid: linux-arm64
+          - target: darwin-x64
+            rid: osx-x64
+          - target: darwin-arm64
+            rid: osx-arm64
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Static checks (no bundle)
+        run: npm run check
+
+      - name: Stage the official Language Server bundle
+        run: node scripts/stage-server.js --lsp-version "${{ github.event.inputs.languageServerVersion }}" --rid ${{ matrix.rid }}
+
+      - name: Validate the staged bundle
+        run: npm run check
+
+      - name: Package the VSIX (pre-release)
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          npx --yes @vscode/vsce package \
+            --target ${{ matrix.target }} \
+            --pre-release \
+            --out "cvolo-language-${version}-${{ matrix.target }}.vsix"
+          echo "VSIX_VERSION=${version}" >> "$GITHUB_ENV"
+
+      - name: Inspect the VSIX contents
+        run: |
+          set -euo pipefail
+          vsix="cvolo-language-${VSIX_VERSION}-${{ matrix.target }}.vsix"
+          echo "== $vsix =="
+          unzip -l "$vsix"
+          # The VSIX must contain exactly one server RID directory, and it must be
+          # the one this leg staged.
+          staged="$(unzip -Z1 "$vsix" | grep -E '^extension/server/[^/]+/' | cut -d/ -f3 | sort -u | tr '\n' ' ')"
+          echo "staged server RIDs in VSIX: ${staged}"
+          test "${staged}" = "${{ matrix.rid }} " || { echo "VSIX must contain exactly server/${{ matrix.rid }}/" >&2; exit 1; }
+          unzip -p "$vsix" "extension/server/${{ matrix.rid }}/bundle-manifest.json" > /dev/null
+          echo "bundle-manifest.json present for ${{ matrix.rid }}"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cvolo-language-${{ matrix.target }}
+          path: cvolo-language-*-${{ matrix.target }}.vsix
+          if-no-files-found: error

@@ -100,14 +100,6 @@ if (!sameArray(pkg.extensionKind, ['workspace'])) {
   fail('extensionKind must be exactly ["workspace"]');
 }
 
-const bundledLanguageServer = pkg.bundledLanguageServer;
-if (!bundledLanguageServer
-    || bundledLanguageServer.version !== '0.0.21-alpha.0'
-    || bundledLanguageServer.compilerCompatibilityLine !== '0.0.21'
-    || bundledLanguageServer.toolingVersion !== '0.0.21.0') {
-  fail('bundledLanguageServer must record LSP version 0.0.21-alpha.0, compiler compatibility line 0.0.21, and tooling 0.0.21.0');
-}
-
 const virtualWorkspaces = pkg.capabilities?.virtualWorkspaces;
 if (virtualWorkspaces?.supported !== false) {
   fail('capabilities.virtualWorkspaces.supported must be false');
@@ -497,6 +489,82 @@ if (/require\(['"]vscode['"]\)/.test(runtimeSource)) {
 for (const line of vscodeIgnore.split(/\r?\n/).map(line => line.trim()).filter(Boolean)) {
   if (/^server\/(?:\*\*?|\*\/\*\*)\/?$/.test(line)) {
     fail('.vscodeignore must not exclude the entire future server/** runtime tree');
+  }
+}
+
+// The compiler-derived bundled Language Server identity is retired. It must not
+// linger anywhere in the extension contract, not even in documentation.
+const obsoleteIdentity = /0\.0\.21-alpha\.0/;
+for (const relative of [...productionJs, 'package.json', 'README.md', 'server/README.md']) {
+  if (fs.existsSync(path.join(root, relative)) && obsoleteIdentity.test(readText(relative))) {
+    fail(`obsolete bundled-Language-Server identity literal is still present in ${relative}`);
+  }
+}
+
+// Validate the staged bundle, if one is present. Provenance is read from the
+// bundle manifest, never from package.json.
+const { executableForRid, isKnownRid } = require('../server-platform');
+const serverDir = path.join(root, 'server');
+const stagedRids = fs.existsSync(serverDir)
+  ? fs.readdirSync(serverDir, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+  : [];
+
+if (stagedRids.length > 0) {
+  if (stagedRids.length !== 1) {
+    fail(`server/ must contain exactly one staged RID directory, found ${stagedRids.length}: ${stagedRids.join(', ')}`);
+  }
+
+  const rid = stagedRids[0];
+  const ridDir = path.join(serverDir, rid);
+
+  if (!isKnownRid(rid)) {
+    fail(`server/${rid} is not a known Language Server RID`);
+  }
+
+  const manifestPath = path.join(ridDir, 'bundle-manifest.json');
+  if (!fs.existsSync(manifestPath)) {
+    fail(`server/${rid}/bundle-manifest.json is required for a staged bundle`);
+  } else {
+    let manifest = null;
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    } catch (error) {
+      fail(`server/${rid}/bundle-manifest.json must contain valid JSON: ${error.message}`);
+    }
+
+    if (manifest && typeof manifest === 'object') {
+      if (manifest.schemaVersion !== 2) {
+        fail(`server/${rid} manifest schemaVersion must be 2`);
+      }
+      if (manifest.rid !== rid) {
+        fail(`server/${rid} manifest rid must match its directory name`);
+      }
+      if (typeof manifest.languageServerVersion !== 'string' || !manifest.languageServerVersion) {
+        fail(`server/${rid} manifest languageServerVersion must be a concrete value`);
+      }
+      if (typeof manifest.languageServerCommit !== 'string' || !/^[0-9a-f]{40}$/.test(manifest.languageServerCommit)) {
+        fail(`server/${rid} manifest languageServerCommit must be a 40-character lowercase hex commit`);
+      }
+      if (typeof manifest.toolingVersion !== 'string' || !manifest.toolingVersion) {
+        fail(`server/${rid} manifest toolingVersion must be a concrete value`);
+      }
+      if (typeof manifest.compilerCompatibilityLine !== 'string' || !manifest.compilerCompatibilityLine) {
+        fail(`server/${rid} manifest compilerCompatibilityLine must be a concrete value`);
+      }
+    }
+
+    const executable = executableForRid(rid);
+    if (!executable || !fs.existsSync(path.join(ridDir, executable))) {
+      fail(`server/${rid} must contain the ${executable || 'expected'} server executable`);
+    }
+  }
+
+  for (const entry of fs.readdirSync(ridDir, { withFileTypes: true })) {
+    if (entry.isDirectory() && isKnownRid(entry.name)) {
+      fail(`server/${rid}/${entry.name} is a nested RID directory and is not allowed`);
+    }
   }
 }
 
