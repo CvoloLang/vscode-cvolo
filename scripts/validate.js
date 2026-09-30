@@ -501,6 +501,31 @@ for (const relative of [...productionJs, 'package.json', 'README.md', 'server/RE
   }
 }
 
+// The bundled Language Server does not advertise semanticTokensProvider, so the
+// extension must not ship semantic-token contributions or claims: they would
+// silently do nothing until the server implements them. TextMate lexical
+// highlighting is grammar-based and stays.
+if (Object.prototype.hasOwnProperty.call(pkg.contributes ?? {}, 'semanticTokenScopes')) {
+  fail('package.json must not contribute semanticTokenScopes: the bundled Language Server does not advertise semantic tokens');
+}
+const theme = readJson('themes/cvolo-vs2019-dark.json');
+if (theme.semanticHighlighting !== undefined) {
+  fail('the Cvolo theme must not enable semanticHighlighting');
+}
+if (theme.semanticTokenColors !== undefined) {
+  fail('the Cvolo theme must not define semanticTokenColors');
+}
+const readmeText = readText('README.md');
+if (/semantic tokens?/i.test(readmeText)) {
+  fail('README.md must not claim semantic-token support');
+}
+if (typeof pkg.description !== 'string' || !/pre-?release/i.test(pkg.description)) {
+  fail('package.json description must present the extension as a pre-release');
+}
+if (pkg.repository?.url !== 'https://github.com/CvoloLang/vscode-cvolo.git') {
+  fail('package.json must declare the vscode-cvolo repository');
+}
+
 // Validate the staged bundle, if one is present. Provenance is read from the
 // bundle manifest, never from package.json.
 const { executableForRid, isKnownRid } = require('../server-platform');

@@ -12,24 +12,6 @@
     "editorBracketHighlight.foreground5": "#179FFF",
     "editorBracketHighlight.foreground6": "#DA70D6"
   },
-  "semanticHighlighting": true,
-  "semanticTokenColors": {
-    "namespace": "#D4D4D4",
-    "type": "#4EC9B0",
-    "class": "#4EC9B0",
-    "struct": "#4EC9B0",
-    "enum": "#B8D7A3",
-    "interface": "#B8D7A3",
-    "typeParameter": "#B8D7A3",
-    "function": "#DCDCAA",
-    "method": "#DCDCAA",
-    "operator": "#D4D4D4",
-    "keyword": "#569CD6",
-    "variable": "#9CDCFE",
-    "parameter": "#9CDCFE",
-    "property": "#D4D4D4",
-    "enumMember": "#D4D4D4"
-  },
   "tokenColors": [
     {
       "scope": "comment",

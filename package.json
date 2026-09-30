@@ -2,8 +2,12 @@
   "name": "cvolo-language",
   "publisher": "cvololang",
   "displayName": "Cvolo",
-  "description": "Cvolo language support for Visual Studio Code via the standalone Cvolo Language Server.",
-  "version": "0.1.0",
+  "description": "Early pre-release: Cvolo language support for Visual Studio Code via the standalone Cvolo Language Server.",
+  "version": "0.1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CvoloLang/vscode-cvolo.git"
+  },
   "icon": "images/cvolologox512.png",
   "license": "MIT",
   "engines": {
@@ -66,64 +70,6 @@
         "language": "cvolo-layout",
         "scopeName": "source.cvolo-layout",
         "path": "./syntaxes/cvolo-layout.tmLanguage.json"
-      }
-    ],
-    "semanticTokenScopes": [
-      {
-        "language": "cvolo",
-        "scopes": {
-          "namespace": [
-            "entity.name.type.namespace",
-            "entity.name.namespace"
-          ],
-          "type": [
-            "entity.name.type",
-            "support.type"
-          ],
-          "class": [
-            "entity.name.type.class"
-          ],
-          "struct": [
-            "entity.name.type.struct"
-          ],
-          "enum": [
-            "entity.name.type.enum"
-          ],
-          "interface": [
-            "entity.name.type.interface"
-          ],
-          "typeParameter": [
-            "entity.name.type.type-parameter"
-          ],
-          "parameter": [
-            "variable.parameter"
-          ],
-          "variable": [
-            "variable.other",
-            "variable"
-          ],
-          "property": [
-            "variable.other.property",
-            "variable.other.member"
-          ],
-          "enumMember": [
-            "variable.other.enummember"
-          ],
-          "function": [
-            "entity.name.function",
-            "support.function"
-          ],
-          "method": [
-            "entity.name.function",
-            "support.function"
-          ],
-          "operator": [
-            "keyword.operator"
-          ],
-          "keyword": [
-            "keyword"
-          ]
-        }
       }
     ],
     "themes": [

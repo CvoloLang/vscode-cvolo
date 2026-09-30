@@ -1,8 +1,10 @@
 # Cvolo for Visual Studio Code
 
-`Cvolo.VSCode` is the thin Visual Studio Code product/runtime shell for the standalone Cvolo Language Server. The extension registers `.cvl` files, provides lexical TextMate highlighting and editor mechanics, starts one Language Server client lifecycle at a time, and forwards language intelligence through LSP.
+> **Early pre-release.** This extension is under active development and is published on the Marketplace pre-release channel. Editor features, settings, and the bundled Language Server may change between releases. Nothing here implies a stable Cvolo compiler release.
 
-The extension intentionally does **not** parse or interpret Cvolo semantics. Diagnostics, completion, hover, navigation, symbols, references, rename, semantic tokens, signature help, code actions, code fixes, project discovery, and compiler interaction belong to `Cvolo.LanguageServer` / compiler tooling.
+`Cvolo.VSCode` is the thin Visual Studio Code product/runtime shell for the standalone Cvolo Language Server. The extension registers `.cvl` files, provides TextMate lexical highlighting (grammar-based and independent of the Language Server) plus editor mechanics, starts one Language Server client lifecycle at a time, and forwards language intelligence through LSP.
+
+The extension intentionally does **not** parse or interpret Cvolo semantics. Diagnostics, completion, hover, navigation, symbols, references, rename, signature help, code actions, code fixes, project discovery, and compiler interaction belong to `Cvolo.LanguageServer` / compiler tooling.
 
 ## Compatibility and execution model
 
