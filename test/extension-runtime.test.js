@@ -6,8 +6,11 @@ const test = require('node:test');
 
 const {
   LifecycleController,
+  bundleManifestPath,
   bundledServerPath,
   currentRid,
+  formatBundleProvenance,
+  readBundleManifest,
   resolveServerCommand
 } = require('../extension-runtime');
 
@@ -367,4 +370,98 @@ test('deactivation during an already-running start lets it settle then stops it'
 
   assert.deepEqual(events, ['start-begin', 'start-end', 'stop']);
   assert.equal(lifecycle.hasClient, false);
+});
+
+test('bundle manifest path targets server/<rid>/bundle-manifest.json', () => {
+  assert.equal(
+    bundleManifestPath({ extensionRoot: '/ext', platform: 'linux', arch: 'x64', pathApi: path.posix }),
+    '/ext/server/linux-x64/bundle-manifest.json'
+  );
+  assert.equal(
+    bundleManifestPath({ extensionRoot: 'C:\\ext', platform: 'win32', arch: 'x64', pathApi: path.win32 }),
+    'C:\\ext\\server\\win-x64\\bundle-manifest.json'
+  );
+  assert.equal(
+    bundleManifestPath({ extensionRoot: '/ext', platform: 'freebsd', arch: 'x64', pathApi: path.posix }),
+    null
+  );
+});
+
+function fakeReadFs(files = {}) {
+  return {
+    readFileSync(candidate, encoding) {
+      assert.equal(encoding, 'utf8');
+      if (!Object.prototype.hasOwnProperty.call(files, candidate)) {
+        throw new Error(`ENOENT: ${candidate}`);
+      }
+      return files[candidate];
+    }
+  };
+}
+
+test('readBundleManifest reads provenance from the bundled manifest', () => {
+  const manifestPath = '/ext/server/linux-x64/bundle-manifest.json';
+  const manifest = {
+    schemaVersion: 2,
+    languageServerVersion: '0.1.0-alpha.11',
+    languageServerCommit: '647dbd8b691c04bd5eeb65626187a9f62894a47c',
+    toolingVersion: '0.0.21.0',
+    compilerCompatibilityLine: '0.0.21',
+    rid: 'linux-x64'
+  };
+
+  const result = readBundleManifest({
+    extensionRoot: '/ext',
+    platform: 'linux',
+    arch: 'x64',
+    pathApi: path.posix,
+    fsApi: fakeReadFs({ [manifestPath]: JSON.stringify(manifest) })
+  });
+
+  assert.equal(result.rid, 'linux-x64');
+  assert.equal(result.manifestPath, manifestPath);
+  assert.deepEqual(result.manifest, manifest);
+});
+
+test('readBundleManifest returns null when the bundle is absent or unreadable', () => {
+  assert.equal(
+    readBundleManifest({ extensionRoot: '/ext', platform: 'linux', arch: 'x64', pathApi: path.posix, fsApi: fakeReadFs() }),
+    null
+  );
+  assert.equal(
+    readBundleManifest({
+      extensionRoot: '/ext',
+      platform: 'linux',
+      arch: 'x64',
+      pathApi: path.posix,
+      fsApi: fakeReadFs({ '/ext/server/linux-x64/bundle-manifest.json': '{ not json' })
+    }),
+    null
+  );
+  assert.equal(
+    readBundleManifest({ extensionRoot: '/ext', platform: 'freebsd', arch: 'x64', pathApi: path.posix, fsApi: fakeReadFs() }),
+    null
+  );
+});
+
+test('formatBundleProvenance renders the provenance block', () => {
+  assert.deepEqual(
+    formatBundleProvenance(
+      {
+        languageServerVersion: '0.1.0-alpha.11',
+        languageServerCommit: '647dbd8b691c04bd5eeb65626187a9f62894a47c',
+        toolingVersion: '0.0.21.0',
+        compilerCompatibilityLine: '0.0.21'
+      },
+      'bundled win-x64'
+    ),
+    [
+      'Cvolo Language Server',
+      'Source: bundled win-x64',
+      'Version: 0.1.0-alpha.11',
+      'Commit: 647dbd8b691c04bd5eeb65626187a9f62894a47c',
+      'Tooling: 0.0.21.0',
+      'Compiler compatibility: 0.0.21'
+    ]
+  );
 });

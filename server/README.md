@@ -1,8 +1,7 @@
 # Bundled Language Server staging
 
-Source control does not contain Language Server binaries.
-
-Release packaging may stage supported artifacts as:
+Source control does not contain Language Server binaries. Release packaging
+stages exactly one platform bundle per VSIX as:
 
 ```text
 server/win-x64/cvolo-language-server.exe
@@ -14,29 +13,49 @@ server/osx-arm64/cvolo-language-server
 
 Development should normally use `cvolo.server.path` or `PATH`.
 
-VSC-0 performs no runtime download/update.
+The extension performs no runtime download/update.
 
-## Bundle contract
+## Provenance source of truth
 
-`package.json` records the bundled/expected Language Server and the compiler
-compatibility line it targets under `bundledLanguageServer`:
+The bundled Language Server identity is **not** recorded in `package.json`. It
+comes from the manifest that ships inside each staged bundle:
 
-```json
-"bundledLanguageServer": {
-  "version": "0.0.21-alpha.0",
-  "compilerCompatibilityLine": "0.0.21",
-  "toolingVersion": "0.0.21.0"
-}
+```text
+server/<rid>/bundle-manifest.json
 ```
 
-The extension's own product SemVer stays independent of these compiler-coupled
-identifiers. `scripts/validate.js` enforces the recorded values.
+That manifest records `languageServerVersion`, `languageServerCommit`,
+`toolingVersion`, `toolingCommit`, `compilerCompatibilityLine`, `rid`,
+`schemaVersion` and the full `files[]` inventory. The extension reads it at
+activation to log provenance, and `scripts/validate.js` validates the staged
+bundle against it.
 
-## Staged payload status
+## Staging
 
-The currently staged `server/win-x64` payload carries a `tooling.manifest.json`
-recording the legacy line (`ToolingVersion 0.0.5.9`, `CompilerCompatibilityLine 0.0`,
-`BuiltFromCompilerVersion 0.0.5-alpha.1`). It is **stale**: the LanguageServer has moved to
-`0.0.21-alpha.0` / `compiler-line 0.0.21`, and the tooling contract is now
-`tooling 0.0.21.0` (published 2026-09-29). The staged win-x64 package must be refreshed to
-the `0.0.21` line before it is used in a release bundle.
+`scripts/stage-server.js` stages a bundle deterministically from the official
+GitHub Release. It downloads the release archive, its manifest sidecar and
+`SHA256SUMS`, verifies the archive against `SHA256SUMS`, verifies
+`bundle-manifest.json` against its sidecar, validates the manifest contract, then
+extracts the archive unchanged into `server/<rid>/`:
+
+```text
+node scripts/stage-server.js --lsp-version <version> --rid <rid>
+```
+
+Nothing is ever copied from a local LanguageServer build tree
+(`LanguageServer/bin`, `LanguageServer/artifacts`, or a previous staging
+directory). The published GitHub Release is authoritative.
+
+## Platform mapping
+
+One VS Code target maps to exactly one Language Server RID. The mapping lives in
+`server-platform.js` and is the single source of truth for the runtime, the
+staging script, the packaging workflow and validation.
+
+```text
+win32-x64    -> win-x64
+linux-x64    -> linux-x64
+linux-arm64  -> linux-arm64
+darwin-x64   -> osx-x64
+darwin-arm64 -> osx-arm64
+```

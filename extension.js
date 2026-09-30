@@ -2,7 +2,7 @@
 
 const vscode = require('vscode');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
-const { LifecycleController, resolveServerCommand } = require('./extension-runtime');
+const { LifecycleController, currentRid, formatBundleProvenance, readBundleManifest, resolveServerCommand } = require('./extension-runtime');
 const { registerCvoloBraceColorizer } = require('./brace-colorizer');
 const { registerCvoloSyntaxColorizer } = require('./syntax-colorizer');
 const { registerEditorIntelligence } = require('./editor-intelligence');
@@ -38,6 +38,25 @@ function reportResolutionFailure(error) {
   );
 }
 
+function logBundledProvenance(context, source) {
+  const bundle = readBundleManifest({
+    extensionRoot: context.extensionPath,
+    platform: process.platform,
+    arch: process.arch
+  });
+
+  if (!bundle) {
+    outputChannel.appendLine(
+      `[client] bundled server manifest (server/${currentRid()}/bundle-manifest.json) could not be read.`
+    );
+    return;
+  }
+
+  for (const line of formatBundleProvenance(bundle.manifest, source)) {
+    outputChannel.appendLine(line);
+  }
+}
+
 async function createAndStartClient(context) {
   let resolved;
   try {
@@ -55,6 +74,11 @@ async function createAndStartClient(context) {
   outputChannel.appendLine(
     `[client] starting Cvolo Language Server from ${resolved.source}: ${resolved.command}`
   );
+
+  if (resolved.source.startsWith('bundled ')) {
+    logBundledProvenance(context, resolved.source);
+  }
+
   outputChannel.appendLine('[client] server arguments: --stdio');
 
   const serverOptions = {

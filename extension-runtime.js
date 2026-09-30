@@ -2,16 +2,12 @@
 
 const fs = require('fs');
 const path = require('path');
+const { executableForRid, ridFor } = require('./server-platform');
 
 const PATH_SERVER_COMMAND = 'cvolo-language-server';
 
 function currentRid(platform = process.platform, arch = process.arch) {
-  if (platform === 'win32' && arch === 'x64') return 'win-x64';
-  if (platform === 'linux' && arch === 'x64') return 'linux-x64';
-  if (platform === 'linux' && arch === 'arm64') return 'linux-arm64';
-  if (platform === 'darwin' && arch === 'x64') return 'osx-x64';
-  if (platform === 'darwin' && arch === 'arm64') return 'osx-arm64';
-  return null;
+  return ridFor(platform, arch);
 }
 
 function bundledServerPath({
@@ -25,9 +21,10 @@ function bundledServerPath({
     return null;
   }
 
-  const executable = platform === 'win32'
-    ? `${PATH_SERVER_COMMAND}.exe`
-    : PATH_SERVER_COMMAND;
+  const executable = executableForRid(rid);
+  if (!executable) {
+    return null;
+  }
 
   return pathApi.join(extensionRoot, 'server', rid, executable);
 }
@@ -193,10 +190,72 @@ class LifecycleController {
   }
 }
 
+function bundleManifestPath({
+  extensionRoot,
+  platform = process.platform,
+  arch = process.arch,
+  pathApi = path
+}) {
+  const rid = currentRid(platform, arch);
+  if (!rid) {
+    return null;
+  }
+
+  return pathApi.join(extensionRoot, 'server', rid, 'bundle-manifest.json');
+}
+
+// Reads the provenance manifest that ships inside the bundled server directory.
+// The manifest is the single source of truth for the bundled Language Server's
+// identity; the extension never hardcodes those values. Returns null when there
+// is no bundle for the current platform or the manifest cannot be read/parsed.
+function readBundleManifest({
+  extensionRoot,
+  platform = process.platform,
+  arch = process.arch,
+  fsApi = fs,
+  pathApi = path
+}) {
+  const rid = currentRid(platform, arch);
+  const manifestPath = bundleManifestPath({ extensionRoot, platform, arch, pathApi });
+  if (!rid || !manifestPath) {
+    return null;
+  }
+
+  let raw;
+  try {
+    raw = fsApi.readFileSync(manifestPath, 'utf8');
+  } catch {
+    return null;
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+
+  return { rid, manifestPath, manifest };
+}
+
+function formatBundleProvenance(manifest, source) {
+  return [
+    'Cvolo Language Server',
+    `Source: ${source}`,
+    `Version: ${manifest.languageServerVersion}`,
+    `Commit: ${manifest.languageServerCommit}`,
+    `Tooling: ${manifest.toolingVersion}`,
+    `Compiler compatibility: ${manifest.compilerCompatibilityLine}`
+  ];
+}
+
 module.exports = {
   PATH_SERVER_COMMAND,
   LifecycleController,
+  bundleManifestPath,
   bundledServerPath,
   currentRid,
+  formatBundleProvenance,
+  readBundleManifest,
   resolveServerCommand
 };
