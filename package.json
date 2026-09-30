@@ -1,13 +1,9 @@
 {
   "name": "cvolo-language",
+  "publisher": "cvololang",
   "displayName": "Cvolo",
   "description": "Cvolo language support for Visual Studio Code via the standalone Cvolo Language Server.",
   "version": "0.1.0",
-  "bundledLanguageServer": {
-    "version": "0.0.21-alpha.0",
-    "compilerCompatibilityLine": "0.0.21",
-    "toolingVersion": "0.0.21.0"
-  },
   "icon": "images/cvolologox512.png",
   "license": "MIT",
   "engines": {
