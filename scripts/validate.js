@@ -304,6 +304,20 @@ if (!layoutLanguage) {
   if (layoutLanguage.configuration !== undefined) {
     fail('cvolo-layout is a generated read-only view and must not claim a language configuration');
   }
+  const layoutIcon = layoutLanguage.icon;
+  if (!layoutIcon || typeof layoutIcon.light !== 'string' || typeof layoutIcon.dark !== 'string') {
+    fail('cvolo-layout language must contribute an icon with light and dark variants');
+  } else {
+    for (const variant of ['light', 'dark']) {
+      const iconRelativePath = layoutIcon[variant];
+      if (!iconRelativePath.startsWith('./images/')) {
+        fail(`cvolo-layout ${variant} icon must live under ./images/`);
+      }
+      if (!fs.existsSync(path.join(root, iconRelativePath))) {
+        fail(`cvolo-layout ${variant} icon asset is missing: ${iconRelativePath}`);
+      }
+    }
+  }
 }
 
 const layoutGrammar = (pkg.contributes?.grammars ?? []).find(grammar => grammar.language === 'cvolo-layout');

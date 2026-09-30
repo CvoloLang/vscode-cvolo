@@ -61,7 +61,11 @@
         ],
         "extensions": [
           ".cvlayout"
-        ]
+        ],
+        "icon": {
+          "light": "./images/cvolo-layout-icon-light.png",
+          "dark": "./images/cvolo-layout-icon-dark.png"
+        }
       },
       {
         "id": "cvolo-project",

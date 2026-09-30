@@ -81,3 +81,15 @@ test('the cvolo-project language contributes a distinct icon and an XML grammar'
   const source = fs.readFileSync(path.join(root, grammar.path.replace(/^\.\//, '')), 'utf8');
   assert.match(source, /text\.xml/, 'cvolo-project grammar must defer to the built-in XML grammar');
 });
+
+test('the cvolo-layout language contributes a distinct icon', () => {
+  const language = pkg.contributes.languages.find(item => item.id === 'cvolo-layout');
+  assert.ok(language, 'cvolo-layout language must be contributed');
+  assert.deepEqual(language.extensions, ['.cvlayout']);
+  assert.ok(language.icon, 'cvolo-layout must contribute an icon');
+  for (const variant of ['light', 'dark']) {
+    const rel = language.icon[variant];
+    assert.match(rel, /^\.\/images\//, `${variant} icon must live under images/`);
+    assert.ok(fs.existsSync(path.join(root, rel)), `${variant} icon file must exist: ${rel}`);
+  }
+});
