@@ -12,6 +12,36 @@ on:
         required: true
         default: 0.1.0-alpha.11
 
+  # workflow_dispatch only registers once this file exists on the default branch
+  # (main), which Stage 10 must not touch. Until then, run the same packaging
+  # contract from develop/0.1.0 whenever a packaging input changes.
+  push:
+    branches:
+      - develop/0.1.0
+    paths:
+      - '.github/workflows/package.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'extension.js'
+      - 'extension-runtime.js'
+      - 'editor-intelligence.js'
+      - 'editor-intelligence-runtime.js'
+      - 'brace-colorizer.js'
+      - 'brace-colorizer-runtime.js'
+      - 'syntax-colorizer.js'
+      - 'syntax-colorizer-runtime.js'
+      - 'server-platform.js'
+      - 'scripts/**'
+      - 'test/**'
+      - '.vscodeignore'
+      - 'images/**'
+      - 'syntaxes/**'
+      - 'themes/**'
+      - 'language-configuration.json'
+      - 'LICENSE'
+      - 'README.md'
+      - 'server/README.md'
+
 permissions:
   contents: read
 
@@ -19,6 +49,9 @@ jobs:
   package:
     name: ${{ matrix.target }}
     runs-on: ubuntu-latest
+    env:
+      # Push-triggered runs have no inputs; default to the pinned official release.
+      LSP_VERSION: ${{ github.event.inputs.languageServerVersion || '0.1.0-alpha.11' }}
     strategy:
       fail-fast: false
       matrix:
@@ -51,7 +84,7 @@ jobs:
         run: npm run check
 
       - name: Stage the official Language Server bundle
-        run: node scripts/stage-server.js --lsp-version "${{ github.event.inputs.languageServerVersion }}" --rid ${{ matrix.rid }}
+        run: node scripts/stage-server.js --lsp-version "${{ env.LSP_VERSION }}" --rid ${{ matrix.rid }}
 
       - name: Validate the staged bundle
         run: npm run check
