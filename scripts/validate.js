@@ -120,6 +120,27 @@ if (language?.configuration !== './language-configuration.json') {
   fail('cvolo language configuration must be ./language-configuration.json');
 }
 
+// A default per-language icon gives .cvl files a Cvolo glyph in the Explorer without
+// shipping a custom file icon theme. Both theme variants must be present so the icon
+// resolves on light and dark workbench themes.
+const languageIcon = language?.icon;
+if (!languageIcon || typeof languageIcon.light !== 'string' || typeof languageIcon.dark !== 'string') {
+  fail('cvolo language must contribute an icon with light and dark variants');
+} else {
+  for (const variant of ['light', 'dark']) {
+    const iconRelativePath = languageIcon[variant];
+    if (!iconRelativePath.startsWith('./images/')) {
+      fail(`cvolo language ${variant} icon must live under ./images/`);
+    }
+    if (!fs.existsSync(path.join(root, iconRelativePath))) {
+      fail(`cvolo language ${variant} icon asset is missing: ${iconRelativePath}`);
+    }
+  }
+}
+if (pkg.contributes?.iconThemes !== undefined) {
+  fail('a default language icon must not introduce a custom file icon theme');
+}
+
 const grammarContribution = pkg.contributes?.grammars?.find(item => item.language === 'cvolo');
 if (!grammarContribution
     || grammarContribution.scopeName !== 'source.cvolo'
@@ -333,6 +354,62 @@ if (!fs.existsSync(layoutGrammarPath)) {
   }
 }
 
+// Cvolo project files are XML manifests. They get their own language id so they can carry a
+// distinct Cvolo icon, and a grammar that defers to the built-in XML grammar for highlighting
+// instead of duplicating XML rules here.
+const projectLanguage = (pkg.contributes?.languages ?? []).find(language => language.id === 'cvolo-project');
+if (!projectLanguage) {
+  fail('cvolo-project language must be contributed');
+} else {
+  if (!Array.isArray(projectLanguage.extensions) || !projectLanguage.extensions.includes('.cvlproj')) {
+    fail('cvolo-project language must own the .cvlproj extension');
+  }
+  const projectIcon = projectLanguage.icon;
+  if (!projectIcon || typeof projectIcon.light !== 'string' || typeof projectIcon.dark !== 'string') {
+    fail('cvolo-project language must contribute an icon with light and dark variants');
+  } else {
+    for (const variant of ['light', 'dark']) {
+      const iconRelativePath = projectIcon[variant];
+      if (!iconRelativePath.startsWith('./images/')) {
+        fail(`cvolo-project ${variant} icon must live under ./images/`);
+      }
+      if (!fs.existsSync(path.join(root, iconRelativePath))) {
+        fail(`cvolo-project ${variant} icon asset is missing: ${iconRelativePath}`);
+      }
+    }
+  }
+}
+
+const projectGrammar = (pkg.contributes?.grammars ?? []).find(grammar => grammar.language === 'cvolo-project');
+if (!projectGrammar) {
+  fail('cvolo-project grammar must be contributed');
+} else {
+  if (projectGrammar.scopeName !== 'source.cvolo-project') {
+    fail('cvolo-project grammar scopeName must be source.cvolo-project');
+  }
+  if (projectGrammar.path !== './syntaxes/cvolo-project.tmLanguage.json') {
+    fail('cvolo-project grammar path must be ./syntaxes/cvolo-project.tmLanguage.json');
+  }
+}
+
+const projectGrammarPath = path.join(root, 'syntaxes', 'cvolo-project.tmLanguage.json');
+if (!fs.existsSync(projectGrammarPath)) {
+  fail('syntaxes/cvolo-project.tmLanguage.json must exist');
+} else {
+  let projectGrammarSource = '';
+  try {
+    projectGrammarSource = fs.readFileSync(projectGrammarPath, 'utf8');
+  } catch {
+    fail('syntaxes/cvolo-project.tmLanguage.json must be readable');
+  }
+  if (!projectGrammarSource.includes('"text.xml"')) {
+    fail('cvolo-project grammar must defer to the built-in XML grammar (text.xml)');
+  }
+  if (!projectGrammarSource.includes('"scopeName": "source.cvolo-project"')) {
+    fail('cvolo-project grammar must declare the source.cvolo-project scope');
+  }
+}
+
 const contributedCommands = pkg.contributes?.commands ?? [];
 if (!contributedCommands.some(command => command.command === 'cvolo.showTypeLayout' && command.title === 'Cvolo: Show Type Layout')) {
   fail('cvolo.showTypeLayout must be contributed as Cvolo: Show Type Layout');
@@ -514,6 +591,19 @@ if (theme.semanticHighlighting !== undefined) {
 }
 if (theme.semanticTokenColors !== undefined) {
   fail('the Cvolo theme must not define semanticTokenColors');
+}
+
+// The extension ships an XML-based cvolo-project language (.cvlproj), so the theme
+// must colour the XML scopes that grammar emits. Without tag/attribute rules the
+// project manifest falls through to the plain editor foreground and looks unhighlighted.
+const themeScopes = (theme.tokenColors ?? [])
+  .flatMap(entry => (Array.isArray(entry.scope) ? entry.scope : [entry.scope]))
+  .filter(scope => typeof scope === 'string');
+const themeCoversScope = prefix => themeScopes.some(scope => scope === prefix || scope.startsWith(`${prefix}.`));
+for (const xmlScope of ['entity.name.tag', 'entity.other.attribute-name']) {
+  if (!themeCoversScope(xmlScope)) {
+    fail(`the Cvolo theme must colour the XML '${xmlScope}' scopes emitted by .cvlproj files`);
+  }
 }
 const readmeText = readText('README.md');
 if (/semantic tokens?/i.test(readmeText)) {

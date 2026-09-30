@@ -211,6 +211,34 @@
       "settings": {
         "foreground": "#569CD6"
       }
+    },
+    {
+      "name": "XML tag name",
+      "scope": [
+        "entity.name.tag",
+        "entity.name.tag.localname.xml",
+        "entity.name.tag.namespace.xml"
+      ],
+      "settings": {
+        "foreground": "#569CD6"
+      }
+    },
+    {
+      "name": "XML attribute name",
+      "scope": [
+        "entity.other.attribute-name",
+        "entity.other.attribute-name.localname.xml"
+      ],
+      "settings": {
+        "foreground": "#9CDCFE"
+      }
+    },
+    {
+      "name": "XML tag punctuation",
+      "scope": "punctuation.definition.tag",
+      "settings": {
+        "foreground": "#808080"
+      }
     }
   ]
 }
