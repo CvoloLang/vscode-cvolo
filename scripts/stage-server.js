@@ -313,7 +313,11 @@ function extractEntries(entries, destination) {
     }
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, entry.data);
-    if (typeof entry.mode === 'number' && process.platform !== 'win32') {
+    // Only apply a mode the archive actually encodes. Windows-created zips
+    // carry external attributes whose Unix permission bits are 0; applying that
+    // would chmod the file to 0000 on Linux/macOS and make it unreadable. When
+    // no usable mode is present, leave the umask default.
+    if (typeof entry.mode === 'number' && entry.mode > 0 && process.platform !== 'win32') {
       fs.chmodSync(target, entry.mode & 0o777);
     }
   }
