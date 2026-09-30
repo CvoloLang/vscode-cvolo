@@ -1,0 +1,220 @@
+name: Release VSIX
+
+# Tag-driven immutable release contract. This workflow performs NO Marketplace
+# publishing and uses NO Marketplace credentials.
+#
+# Pushing an immutable vX.Y.Z tag builds the five platform-specific VSIX
+# packages from the tagged commit, validates the whole release contract, and
+# creates a GitHub prerelease carrying the five VSIX files plus SHA256SUMS.
+# Marketplace publication stays a separate, manually gated step and must reuse
+# exactly these artifacts.
+#
+# Immutable rule: never move, delete, or recreate a vX.Y.Z tag. A transient
+# failure is retried against the same artifacts; any content change requires a
+# new version (0.1.1 -> 0.1.2), a rebuild, a fresh smoke test, and a new tag.
+#
+# Tag-triggered push workflows run from the workflow file in the pushed tag's
+# commit, so this contract is self-contained on the release branch and does not
+# require touching the default branch.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: win32-x64
+            rid: win-x64
+          - target: linux-x64
+            rid: linux-x64
+          - target: linux-arm64
+            rid: linux-arm64
+          - target: darwin-x64
+            rid: osx-x64
+          - target: darwin-arm64
+            rid: osx-arm64
+
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version, tag identity, and bundled Language Server
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          tag="${GITHUB_REF_NAME}"
+          test "${tag}" = "v${version}" || { echo "tag ${tag} must equal v${version} (package.json)" >&2; exit 1; }
+          peeled="$(git rev-list -n 1 "${tag}")"
+          test "${peeled}" = "${GITHUB_SHA}" || { echo "tag ${tag} peels to ${peeled}, not ${GITHUB_SHA}" >&2; exit 1; }
+          cfg='./.github/language-server-release.json'
+          {
+            echo "VERSION=${version}"
+            echo "LSP_VERSION=$(node -p "require('${cfg}').languageServerVersion")"
+            echo "LSP_COMMIT=$(node -p "require('${cfg}').languageServerCommit")"
+            echo "LSP_TOOLING=$(node -p "require('${cfg}').toolingVersion")"
+            echo "LSP_COMPILER=$(node -p "require('${cfg}').compilerCompatibilityLine")"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Static checks (no bundle)
+        run: npm run check
+
+      - name: Stage the official Language Server bundle
+        run: |
+          node scripts/stage-server.js \
+            --lsp-version "${LSP_VERSION}" \
+            --rid ${{ matrix.rid }} \
+            --expect-commit "${LSP_COMMIT}" \
+            --expect-tooling-version "${LSP_TOOLING}" \
+            --expect-compiler-line "${LSP_COMPILER}"
+
+      - name: Validate the staged bundle
+        run: npm run check
+
+      - name: Package the VSIX (pre-release)
+        run: |
+          set -euo pipefail
+          npx --yes @vscode/vsce package \
+            --target ${{ matrix.target }} \
+            --pre-release \
+            --out "cvolo-language-${VERSION}-${{ matrix.target }}.vsix"
+
+      - name: Sanity-check the VSIX
+        run: |
+          set -euo pipefail
+          vsix="cvolo-language-${VERSION}-${{ matrix.target }}.vsix"
+          staged="$(unzip -Z1 "$vsix" | grep -E '^extension/server/[^/]+/' | cut -d/ -f3 | sort -u | tr '\n' ' ')"
+          test "${staged}" = "${{ matrix.rid }} " || { echo "${vsix} must contain exactly server/${{ matrix.rid }}/" >&2; exit 1; }
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cvolo-language-${{ matrix.target }}
+          path: cvolo-language-*-${{ matrix.target }}.vsix
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub prerelease
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version and bundled Language Server
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          tag="${GITHUB_REF_NAME}"
+          test "${tag}" = "v${version}" || { echo "tag ${tag} must equal v${version} (package.json)" >&2; exit 1; }
+          peeled="$(git rev-list -n 1 "${tag}")"
+          test "${peeled}" = "${GITHUB_SHA}" || { echo "tag ${tag} peels to ${peeled}, not ${GITHUB_SHA}" >&2; exit 1; }
+          cfg='./.github/language-server-release.json'
+          {
+            echo "VERSION=${version}"
+            echo "LSP_VERSION=$(node -p "require('${cfg}').languageServerVersion")"
+            echo "LSP_COMMIT=$(node -p "require('${cfg}').languageServerCommit")"
+            echo "LSP_TOOLING=$(node -p "require('${cfg}').toolingVersion")"
+            echo "LSP_COMPILER=$(node -p "require('${cfg}').compilerCompatibilityLine")"
+          } >> "$GITHUB_ENV"
+
+      - name: Download all VSIX artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cvolo-language-*
+          merge-multiple: true
+
+      - name: Validate the release contract and build SHA256SUMS
+        run: |
+          set -euo pipefail
+          pairs=( "win32-x64:win-x64" "linux-x64:linux-x64" "linux-arm64:linux-arm64" "darwin-x64:osx-x64" "darwin-arm64:osx-arm64" )
+          : > SHA256SUMS
+          for pair in "${pairs[@]}"; do
+            target="${pair%%:*}"; rid="${pair##*:}"
+            vsix="cvolo-language-${VERSION}-${target}.vsix"
+            test -f "${vsix}" || { echo "missing ${vsix}" >&2; exit 1; }
+
+            # package.json identity: publisher, name, version, and no semantic-token contribution.
+            unzip -p "${vsix}" extension/package.json > pkg.json
+            PUB=cvololang VER="${VERSION}" node -e '
+              const p = require("./pkg.json");
+              if (p.publisher !== process.env.PUB) throw new Error("publisher=" + p.publisher);
+              if (p.name !== "cvolo-language") throw new Error("name=" + p.name);
+              if (p.version !== process.env.VER) throw new Error("version=" + p.version);
+              if (p.contributes && p.contributes.semanticTokenScopes) throw new Error("semanticTokenScopes present");
+            '
+
+            # vsixmanifest: pre-release marker and the target platform.
+            unzip -p "${vsix}" extension.vsixmanifest > vsixmanifest.xml
+            grep -Eq 'PreRelease[^>]*Value="true"' vsixmanifest.xml || { echo "${vsix}: PreRelease marker missing" >&2; exit 1; }
+            grep -q "TargetPlatform=\"${target}\"" vsixmanifest.xml || { echo "${vsix}: TargetPlatform != ${target}" >&2; exit 1; }
+
+            # exactly one staged server RID, matching the target.
+            staged="$(unzip -Z1 "${vsix}" | grep -E '^extension/server/[^/]+/' | cut -d/ -f3 | sort -u | tr '\n' ' ')"
+            test "${staged}" = "${rid} " || { echo "${vsix}: server dirs [${staged}] != ${rid}" >&2; exit 1; }
+
+            # bundled Language Server provenance.
+            unzip -p "${vsix}" "extension/server/${rid}/bundle-manifest.json" > bm.json
+            RID="${rid}" LSP_VER="${LSP_VERSION}" LSP_COMMIT="${LSP_COMMIT}" LSP_TOOLING="${LSP_TOOLING}" LSP_COMPILER="${LSP_COMPILER}" node -e '
+              const m = require("./bm.json");
+              const eq = (k, v) => { if (m[k] !== v) throw new Error(k + "=" + m[k] + " != " + v); };
+              if (m.schemaVersion !== 2) throw new Error("schemaVersion=" + m.schemaVersion);
+              eq("languageServerVersion", process.env.LSP_VER);
+              eq("languageServerCommit", process.env.LSP_COMMIT);
+              eq("toolingVersion", process.env.LSP_TOOLING);
+              eq("compilerCompatibilityLine", process.env.LSP_COMPILER);
+              eq("rid", process.env.RID);
+            '
+
+            # the theme must keep TextMate colours and make no semantic-token claim.
+            unzip -p "${vsix}" extension/themes/cvolo-vs2019-dark.json > theme.json
+            node -e '
+              const t = require("./theme.json");
+              if (t.semanticHighlighting !== undefined) throw new Error("semanticHighlighting present");
+              if (t.semanticTokenColors !== undefined) throw new Error("semanticTokenColors present");
+              if (!Array.isArray(t.tokenColors) || t.tokenColors.length === 0) throw new Error("tokenColors missing");
+            '
+
+            sha256sum "${vsix}" >> SHA256SUMS
+            echo "${vsix}: OK"
+          done
+          test "$(wc -l < SHA256SUMS)" -eq 5 || { echo "SHA256SUMS must cover the five VSIX files" >&2; exit 1; }
+
+      - name: Create the GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" \
+            "cvolo-language-${VERSION}-win32-x64.vsix" \
+            "cvolo-language-${VERSION}-linux-x64.vsix" \
+            "cvolo-language-${VERSION}-linux-arm64.vsix" \
+            "cvolo-language-${VERSION}-darwin-x64.vsix" \
+            "cvolo-language-${VERSION}-darwin-arm64.vsix" \
+            SHA256SUMS \
+            --verify-tag \
+            --prerelease \
+            --generate-notes \
+            --title "Cvolo VS Code ${VERSION}"
