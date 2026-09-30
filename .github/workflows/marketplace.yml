@@ -1,0 +1,216 @@
+# Marketplace publication, gated and manual.
+#
+# This workflow NEVER builds, packages, or repacks anything. It publishes the
+# exact immutable VSIX files that are already attached to an existing GitHub
+# prerelease. It is deliberately separate from release.yml so that pushing a tag
+# can never publish to the Marketplace on its own: a maintainer must trigger
+# this workflow explicitly, and the `marketplace` environment can be configured
+# to require a manual approval before the OIDC token is issued.
+#
+# Authentication uses Visual Studio Marketplace trusted publishing over GitHub
+# Actions OIDC. No PAT, VSCE_PAT, or any long-lived publishing secret is used.
+name: Marketplace Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing GitHub prerelease tag to publish (e.g. v0.1.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  EXPECTED_PUBLISHER: cvololang
+  EXPECTED_NAME: cvolo-language
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Protected environment. Configure required reviewers on the `marketplace`
+    # environment so publication needs explicit approval. The environment is
+    # also what the Marketplace trusted-publishing policy can be scoped to.
+    environment: marketplace
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve and validate the requested release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+
+          if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release_tag must look like vX.Y.Z (got: $RELEASE_TAG)" >&2
+            exit 1
+          fi
+          echo "VERSION=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
+
+          if ! git ls-remote --tags --exit-code origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "tag $RELEASE_TAG does not exist" >&2
+            exit 1
+          fi
+
+          if ! gh release view "$RELEASE_TAG" --json isPrerelease,isDraft,tagName > release.json 2>/dev/null; then
+            echo "GitHub Release $RELEASE_TAG does not exist" >&2
+            exit 1
+          fi
+          if [ "$(jq -r .isDraft release.json)" != "false" ]; then
+            echo "GitHub Release $RELEASE_TAG is a draft" >&2
+            exit 1
+          fi
+          if [ "$(jq -r .isPrerelease release.json)" != "true" ]; then
+            echo "GitHub Release $RELEASE_TAG is not a prerelease" >&2
+            exit 1
+          fi
+
+          repo_version="$(git show "$RELEASE_TAG:package.json" | jq -r .version)"
+          if [ "$repo_version" != "${RELEASE_TAG#v}" ]; then
+            echo "tag $RELEASE_TAG does not match package.json version $repo_version" >&2
+            exit 1
+          fi
+
+      - name: Download the immutable release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          rm -rf assets
+          mkdir -p assets
+          gh release download "$RELEASE_TAG" --dir assets \
+            --pattern 'cvolo-language-*.vsix' \
+            --pattern 'SHA256SUMS'
+
+      - name: Verify the asset set and SHA256SUMS
+        run: |
+          set -euo pipefail
+          pairs=(
+            "win32-x64:win-x64"
+            "linux-x64:linux-x64"
+            "linux-arm64:linux-arm64"
+            "darwin-x64:osx-x64"
+            "darwin-arm64:osx-arm64"
+          )
+          expected=()
+          for pair in "${pairs[@]}"; do
+            expected+=("cvolo-language-${VERSION}-${pair%%:*}.vsix")
+          done
+          expected+=("SHA256SUMS")
+
+          mapfile -t actual < <(find assets -maxdepth 1 -type f -printf '%f\n' | sort)
+          mapfile -t want < <(printf '%s\n' "${expected[@]}" | sort)
+
+          if [ "${#actual[@]}" -ne "${#want[@]}" ]; then
+            echo "unexpected asset count: found ${#actual[@]}, expected ${#want[@]}" >&2
+            printf '  actual: %s\n' "${actual[@]}" >&2
+            exit 1
+          fi
+          for i in "${!want[@]}"; do
+            if [ "${actual[$i]}" != "${want[$i]}" ]; then
+              echo "asset set does not match the expected five VSIX files and SHA256SUMS" >&2
+              printf '  actual:   %s\n' "${actual[@]}" >&2
+              printf '  expected: %s\n' "${want[@]}" >&2
+              exit 1
+            fi
+          done
+
+          ( cd assets && sha256sum -c SHA256SUMS )
+
+      - name: Verify each VSIX contract
+        run: |
+          set -euo pipefail
+          pairs=(
+            "win32-x64:win-x64"
+            "linux-x64:linux-x64"
+            "linux-arm64:linux-arm64"
+            "darwin-x64:osx-x64"
+            "darwin-arm64:osx-arm64"
+          )
+          prov_file="$(mktemp)"
+
+          for pair in "${pairs[@]}"; do
+            target="${pair%%:*}"
+            rid="${pair##*:}"
+            vsix="assets/cvolo-language-${VERSION}-${target}.vsix"
+            echo "--- $target ($vsix)"
+            if [ ! -f "$vsix" ]; then
+              echo "missing $vsix" >&2
+              exit 1
+            fi
+
+            pkg_json="$(unzip -p "$vsix" extension/package.json)"
+            got_publisher="$(printf '%s' "$pkg_json" | jq -r .publisher)"
+            got_name="$(printf '%s' "$pkg_json" | jq -r .name)"
+            got_version="$(printf '%s' "$pkg_json" | jq -r .version)"
+            if [ "$got_publisher" != "$EXPECTED_PUBLISHER" ]; then
+              echo "$target: publisher is '$got_publisher', expected '$EXPECTED_PUBLISHER'" >&2; exit 1
+            fi
+            if [ "$got_name" != "$EXPECTED_NAME" ]; then
+              echo "$target: name is '$got_name', expected '$EXPECTED_NAME'" >&2; exit 1
+            fi
+            if [ "$got_version" != "$VERSION" ]; then
+              echo "$target: version is '$got_version', expected '$VERSION'" >&2; exit 1
+            fi
+            if printf '%s' "$pkg_json" | jq -e '.contributes.semanticTokenScopes' >/dev/null 2>&1; then
+              echo "$target: package must not contribute semanticTokenScopes" >&2; exit 1
+            fi
+
+            manifest="$(unzip -p "$vsix" extension.vsixmanifest)"
+            if ! printf '%s' "$manifest" | grep -q 'PreRelease[^>]*Value="true"'; then
+              echo "$target: PreRelease is not true" >&2; exit 1
+            fi
+            if ! printf '%s' "$manifest" | grep -q "TargetPlatform=\"$target\""; then
+              echo "$target: TargetPlatform is not $target" >&2; exit 1
+            fi
+
+            server_dirs="$(unzip -Z1 "$vsix" | sed -n 's#^extension/server/\([^/]*\)/.*#\1#p' | sort -u)"
+            if [ "$server_dirs" != "$rid" ]; then
+              echo "$target: bundled server RID is '$server_dirs', expected '$rid'" >&2; exit 1
+            fi
+
+            bm="$(unzip -p "$vsix" "extension/server/${rid}/bundle-manifest.json")"
+            if [ "$(printf '%s' "$bm" | jq -r .schemaVersion)" != "2" ]; then
+              echo "$target: bundle-manifest schemaVersion is not 2" >&2; exit 1
+            fi
+            if [ "$(printf '%s' "$bm" | jq -r .rid)" != "$rid" ]; then
+              echo "$target: bundle-manifest rid does not match the packaged RID" >&2; exit 1
+            fi
+            printf '%s' "$bm" \
+              | jq -r '[.languageServerVersion,.languageServerCommit,.toolingVersion,.compilerCompatibilityLine]|@tsv' \
+              >> "$prov_file"
+          done
+
+          echo "--- bundled Language Server provenance"
+          sort -u "$prov_file"
+          if [ "$(sort -u "$prov_file" | wc -l)" -ne 1 ]; then
+            echo "bundled Language Server provenance differs between the five packages" >&2
+            exit 1
+          fi
+
+      - name: Publish to the Visual Studio Marketplace (OIDC)
+        run: |
+          set -euo pipefail
+          npx --yes @vscode/vsce@4.0.0 publish \
+            --oidc \
+            --pre-release \
+            --packagePath \
+              "assets/cvolo-language-${VERSION}-win32-x64.vsix" \
+              "assets/cvolo-language-${VERSION}-linux-x64.vsix" \
+              "assets/cvolo-language-${VERSION}-linux-arm64.vsix" \
+              "assets/cvolo-language-${VERSION}-darwin-x64.vsix" \
+              "assets/cvolo-language-${VERSION}-darwin-arm64.vsix"
