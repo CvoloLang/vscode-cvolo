@@ -13,7 +13,7 @@
 // any previous staging directory).
 //
 // Usage:
-//   node scripts/stage-server.js --lsp-version 0.1.0-alpha.11 --rid win-x64
+//   node scripts/stage-server.js --lsp-version 0.1.0-alpha.12 --rid win-x64
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -35,9 +35,24 @@ const SCHEMA_VERSION = 2;
 
 // Contract values this stager enforces. They are validation gates, not stored
 // identities: the manifest is still the source of truth for what was published.
+// The defaults track the repo's pinned Language Server release contract
+// (.github/language-server-release.json) so a manual run cannot silently accept
+// the wrong tooling generation.
+function readPinnedContract(key, fallback) {
+  try {
+    const pinned = JSON.parse(
+      fs.readFileSync(path.join(__dirname, '..', '.github', 'language-server-release.json'), 'utf8')
+    );
+    const value = pinned[key];
+    return typeof value === 'string' && value.length > 0 ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 const DEFAULT_EXPECT = Object.freeze({
-  toolingVersion: '0.0.21.0',
-  compilerCompatibilityLine: '0.0.21'
+  toolingVersion: readPinnedContract('toolingVersion', '0.0.21.1'),
+  compilerCompatibilityLine: readPinnedContract('compilerCompatibilityLine', '0.0.21')
 });
 
 const USER_AGENT = 'cvolo-vscode-stage-server';
