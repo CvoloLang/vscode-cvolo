@@ -5,7 +5,6 @@ const { computeSyntaxColorRanges } = require('./syntax-colorizer-runtime');
 
 const NAMESPACE_COLOR = '#D4D4D4';
 const GENERIC_DELIMITER_COLOR = '#FFD700';
-const TYPE_PARAMETER_COLOR = '#B8D7A3';
 
 function toVsCodeRanges(document, ranges) {
   return ranges.map(({ start, end }) => new vscode.Range(
@@ -21,14 +20,11 @@ function registerCvoloSyntaxColorizer(context) {
   const genericDelimiterDecoration = vscode.window.createTextEditorDecorationType({
     color: GENERIC_DELIMITER_COLOR
   });
-  const typeParameterDecoration = vscode.window.createTextEditorDecorationType({
-    color: TYPE_PARAMETER_COLOR
-  });
-
+  // Type parameters are classified semantically by the language server, so no regex
+  // decoration is applied for them; a regex would fight the semantic colouring.
   const decorationTypes = [
     namespaceDecoration,
-    genericDelimiterDecoration,
-    typeParameterDecoration
+    genericDelimiterDecoration
   ];
   context.subscriptions.push(...decorationTypes);
 
@@ -49,7 +45,6 @@ function registerCvoloSyntaxColorizer(context) {
     const ranges = computeSyntaxColorRanges(editor.document.getText());
     editor.setDecorations(namespaceDecoration, toVsCodeRanges(editor.document, ranges.namespaceRanges));
     editor.setDecorations(genericDelimiterDecoration, toVsCodeRanges(editor.document, ranges.genericDelimiterRanges));
-    editor.setDecorations(typeParameterDecoration, toVsCodeRanges(editor.document, ranges.typeParameterRanges));
   }
 
   function applyToDocument(document) {

@@ -592,19 +592,24 @@ for (const relative of [...productionJs, 'package.json', 'README.md', 'server/RE
   }
 }
 
-// The bundled Language Server does not advertise semanticTokensProvider, so the
-// extension must not ship semantic-token contributions or claims: they would
-// silently do nothing until the server implements them. TextMate lexical
-// highlighting is grammar-based and stays.
+// The bundled Language Server advertises semanticTokensProvider (textDocument/
+// semanticTokens/full) backed by the compiler semantic model, so the theme enables
+// semantic highlighting and colours the token types the server emits. TextMate
+// lexical highlighting stays as the grammar-based fallback.
 if (Object.prototype.hasOwnProperty.call(pkg.contributes ?? {}, 'semanticTokenScopes')) {
-  fail('package.json must not contribute semanticTokenScopes: the bundled Language Server does not advertise semantic tokens');
+  fail('package.json must not contribute semanticTokenScopes: the client derives scopes from the server legend');
 }
 const theme = readJson('themes/cvolo-vs2019-dark.json');
-if (theme.semanticHighlighting !== undefined) {
-  fail('the Cvolo theme must not enable semanticHighlighting');
+if (theme.semanticHighlighting !== true) {
+  fail('the Cvolo theme must enable semanticHighlighting for the bundled Language Server');
 }
-if (theme.semanticTokenColors !== undefined) {
-  fail('the Cvolo theme must not define semanticTokenColors');
+if (typeof theme.semanticTokenColors !== 'object' || theme.semanticTokenColors === null) {
+  fail('the Cvolo theme must define semanticTokenColors for the server token types');
+}
+for (const tokenType of ['namespace', 'typeParameter', 'parameter', 'variable', 'property', 'enumMember', 'function', 'method', 'operator', 'keyword']) {
+  if (!Object.prototype.hasOwnProperty.call(theme.semanticTokenColors, tokenType)) {
+    fail(`the Cvolo theme must colour the semantic token type '${tokenType}'`);
+  }
 }
 
 // The extension ships an XML-based cvolo-project language (.cvlproj), so the theme
@@ -618,10 +623,6 @@ for (const xmlScope of ['entity.name.tag', 'entity.other.attribute-name']) {
   if (!themeCoversScope(xmlScope)) {
     fail(`the Cvolo theme must colour the XML '${xmlScope}' scopes emitted by .cvlproj files`);
   }
-}
-const readmeText = readText('README.md');
-if (/semantic tokens?/i.test(readmeText)) {
-  fail('README.md must not claim semantic-token support');
 }
 if (typeof pkg.description !== 'string' || !/pre-?release/i.test(pkg.description)) {
   fail('package.json description must present the extension as a pre-release');

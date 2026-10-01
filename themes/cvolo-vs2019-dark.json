@@ -2,6 +2,24 @@
   "$schema": "vscode://schemas/color-theme",
   "name": "Cvolo Visual Studio 2019 Dark",
   "type": "dark",
+  "semanticHighlighting": true,
+  "semanticTokenColors": {
+    "namespace": { "foreground": "#D4D4D4" },
+    "type": { "foreground": "#4EC9B0" },
+    "class": { "foreground": "#4EC9B0" },
+    "struct": { "foreground": "#4EC9B0" },
+    "enum": { "foreground": "#4EC9B0" },
+    "interface": { "foreground": "#4EC9B0" },
+    "typeParameter": { "foreground": "#B8D7A3" },
+    "parameter": { "foreground": "#9CDCFE" },
+    "variable": { "foreground": "#9CDCFE" },
+    "property": { "foreground": "#9CDCFE" },
+    "enumMember": { "foreground": "#4FC1FF" },
+    "function": { "foreground": "#DCDCAA" },
+    "method": { "foreground": "#DCDCAA" },
+    "operator": { "foreground": "#D4D4D4" },
+    "keyword": { "foreground": "#569CD6" }
+  },
   "colors": {
     "editor.background": "#1E1E1E",
     "editor.foreground": "#D4D4D4",
@@ -35,6 +53,17 @@
       ],
       "settings": {
         "foreground": "#B5CEA8"
+      }
+    },
+    {
+      "name": "Cvolo language constants (true/false/null)",
+      "scope": [
+        "constant.language",
+        "constant.language.boolean",
+        "constant.language.null"
+      ],
+      "settings": {
+        "foreground": "#569CD6"
       }
     },
     {

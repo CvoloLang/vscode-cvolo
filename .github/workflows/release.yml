@@ -156,7 +156,7 @@ jobs:
             vsix="cvolo-language-${VERSION}-${target}.vsix"
             test -f "${vsix}" || { echo "missing ${vsix}" >&2; exit 1; }
 
-            # package.json identity: publisher, name, version, and no semantic-token contribution.
+            # package.json identity: publisher, name, version, and no redundant semantic-scope map.
             unzip -p "${vsix}" extension/package.json > pkg.json
             PUB=cvololang VER="${VERSION}" node -e '
               const p = require("./pkg.json");
@@ -188,12 +188,16 @@ jobs:
               eq("rid", process.env.RID);
             '
 
-            # the theme must keep TextMate colours and make no semantic-token claim.
+            # the theme must enable semantic highlighting for the bundled Language Server
+            # and keep the TextMate colours as the grammar-based fallback.
             unzip -p "${vsix}" extension/themes/cvolo-vs2019-dark.json > theme.json
             node -e '
               const t = require("./theme.json");
-              if (t.semanticHighlighting !== undefined) throw new Error("semanticHighlighting present");
-              if (t.semanticTokenColors !== undefined) throw new Error("semanticTokenColors present");
+              if (t.semanticHighlighting !== true) throw new Error("semanticHighlighting not enabled");
+              if (typeof t.semanticTokenColors !== "object" || t.semanticTokenColors === null) throw new Error("semanticTokenColors missing");
+              for (const k of ["namespace","typeParameter","parameter","variable","property","enumMember","function","method","operator","keyword"]) {
+                if (!Object.prototype.hasOwnProperty.call(t.semanticTokenColors, k)) throw new Error("semanticTokenColors missing " + k);
+              }
               if (!Array.isArray(t.tokenColors) || t.tokenColors.length === 0) throw new Error("tokenColors missing");
             '
 

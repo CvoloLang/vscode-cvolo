@@ -17,15 +17,24 @@ test('publisher, name and version are the frozen Marketplace identity', () => {
   assert.equal(pkg.engines.vscode, '^1.82.0');
 });
 
-test('the extension advertises no semantic-token contributions', () => {
+test('the extension does not need a static semantic-scope map because the server supplies the legend', () => {
   assert.equal(pkg.contributes.semanticTokenScopes, undefined);
 });
 
-test('the theme keeps TextMate lexical colours and enables no semantic highlighting', () => {
-  assert.equal(theme.semanticHighlighting, undefined);
-  assert.equal(theme.semanticTokenColors, undefined);
+test('the theme enables semantic highlighting for the language-server token types', () => {
+  assert.equal(theme.semanticHighlighting, true,
+    'semantic highlighting must be on so the language server can refine TextMate colours');
+  assert.equal(typeof theme.semanticTokenColors, 'object');
+  assert.ok(theme.semanticTokenColors !== null);
+  for (const tokenType of ['namespace', 'typeParameter', 'parameter', 'variable', 'property', 'enumMember', 'function', 'method', 'operator', 'keyword']) {
+    assert.ok(Object.prototype.hasOwnProperty.call(theme.semanticTokenColors, tokenType),
+      `semanticTokenColors must colour the '${tokenType}' token type`);
+  }
+});
+
+test('the theme keeps TextMate lexical colours as a grammar-based fallback', () => {
   assert.ok(Array.isArray(theme.tokenColors) && theme.tokenColors.length > 0,
-    'TextMate tokenColors must remain the theme colouring mechanism');
+    'TextMate tokenColors remain the fallback colouring mechanism without the language server');
 });
 
 test('the theme colours the XML scopes emitted by the cvolo-project grammar', () => {
@@ -37,9 +46,10 @@ test('the theme colours the XML scopes emitted by the cvolo-project grammar', ()
   assert.ok(covers('entity.other.attribute-name'), 'XML attribute names must be coloured for .cvlproj files');
 });
 
-test('Marketplace-facing text makes no semantic-token claim', () => {
-  assert.ok(!/semantic tokens?/i.test(readme),
-    'README.md must not claim semantic-token support: the bundled Language Server does not advertise it');
+test('the theme and the extension agree that the language server owns semantic classification', () => {
+  // The server advertises textDocument/semanticTokens/full backed by the compiler
+  // semantic model, so the README may describe semantic highlighting truthfully.
+  assert.equal(theme.semanticHighlighting, true);
 });
 
 test('the extension is presented as an early pre-release', () => {
