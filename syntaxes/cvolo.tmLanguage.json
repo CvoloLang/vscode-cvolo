@@ -46,6 +46,9 @@
       "include": "#field-initializers"
     },
     {
+      "include": "#field-declarations"
+    },
+    {
       "include": "#generic-arguments"
     },
     {
@@ -366,6 +369,14 @@
     "field-initializers": {
       "patterns": [
         {
+          "match": "^[ \\t]*([A-Za-z_][A-Za-z0-9_]*)(?=[ \\t]*:)",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.cvolo"
+            }
+          }
+        },
+        {
           "match": "([{,])[ \\t\\r\\n]*([A-Za-z_][A-Za-z0-9_]*)(?=[ \\t]*:)",
           "captures": {
             "1": {
@@ -479,8 +490,40 @@
     "member-access-identifiers": {
       "patterns": [
         {
-          "name": "variable.other.member.cvolo",
+          "name": "variable.other.property.cvolo",
           "match": "(?<=\\.)[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "field-declarations": {
+      "patterns": [
+        {
+          "match": "^[ \\t]*(public|private|internal)[ \\t]+(int|uint|long|ulong|short|ushort|byte|sbyte|nint|nuint|float|double|bool|string|char)[ \\t]+([A-Za-z_][A-Za-z0-9_]*)(?=[ \\t]*;)",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.cvolo"
+            },
+            "2": {
+              "name": "storage.type.primitive.cvolo"
+            },
+            "3": {
+              "name": "variable.other.property.cvolo"
+            }
+          }
+        },
+        {
+          "match": "^[ \\t]*(public|private|internal)[ \\t]+([A-Za-z_][A-Za-z0-9_.]*)(?:[ \\t]+)([A-Za-z_][A-Za-z0-9_]*)(?=[ \\t]*;)",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.cvolo"
+            },
+            "2": {
+              "name": "entity.name.type.cvolo"
+            },
+            "3": {
+              "name": "variable.other.property.cvolo"
+            }
+          }
         }
       ]
     }

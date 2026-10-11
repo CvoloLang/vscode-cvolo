@@ -2,24 +2,6 @@
   "$schema": "vscode://schemas/color-theme",
   "name": "Cvolo Visual Studio 2019 Dark",
   "type": "dark",
-  "semanticHighlighting": true,
-  "semanticTokenColors": {
-    "namespace": { "foreground": "#D4D4D4" },
-    "type": { "foreground": "#4EC9B0" },
-    "class": { "foreground": "#4EC9B0" },
-    "struct": { "foreground": "#4EC9B0" },
-    "enum": { "foreground": "#4EC9B0" },
-    "interface": { "foreground": "#4EC9B0" },
-    "typeParameter": { "foreground": "#B8D7A3" },
-    "parameter": { "foreground": "#9CDCFE" },
-    "variable": { "foreground": "#9CDCFE" },
-    "property": { "foreground": "#9CDCFE" },
-    "enumMember": { "foreground": "#4FC1FF" },
-    "function": { "foreground": "#DCDCAA" },
-    "method": { "foreground": "#DCDCAA" },
-    "operator": { "foreground": "#D4D4D4" },
-    "keyword": { "foreground": "#569CD6" }
-  },
   "colors": {
     "editor.background": "#1E1E1E",
     "editor.foreground": "#D4D4D4",
@@ -30,6 +12,7 @@
     "editorBracketHighlight.foreground5": "#179FFF",
     "editorBracketHighlight.foreground6": "#DA70D6"
   },
+  "semanticHighlighting": true,
   "tokenColors": [
     {
       "scope": "comment",
@@ -53,17 +36,6 @@
       ],
       "settings": {
         "foreground": "#B5CEA8"
-      }
-    },
-    {
-      "name": "Cvolo language constants (true/false/null)",
-      "scope": [
-        "constant.language",
-        "constant.language.boolean",
-        "constant.language.null"
-      ],
-      "settings": {
-        "foreground": "#569CD6"
       }
     },
     {
@@ -268,6 +240,33 @@
       "settings": {
         "foreground": "#808080"
       }
+    },
+    {
+      "name": "Cvolo struct fields and member accesses",
+      "scope": [
+        "variable.other.property.cvolo",
+        "variable.other.member.cvolo"
+      ],
+      "settings": {
+        "foreground": "#D4D4D4"
+      }
     }
-  ]
+  ],
+  "semanticTokenColors": {
+    "namespace": "#D4D4D4",
+    "typeParameter": "#B8D7A3",
+    "parameter": "#9CDCFE",
+    "variable": "#9CDCFE",
+    "property": "#D4D4D4",
+    "enumMember": "#B5CEA8",
+    "function": "#DCDCAA",
+    "method": "#DCDCAA",
+    "operator": "#D4D4D4",
+    "keyword": "#569CD6",
+    "property:cvolo": "#D4D4D4",
+    "variable:cvolo": "#9CDCFE",
+    "parameter:cvolo": "#9CDCFE",
+    "struct:cvolo": "#4EC9B0",
+    "type:cvolo": "#4EC9B0"
+  }
 }
