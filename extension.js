@@ -57,6 +57,28 @@ function logBundledProvenance(context, source) {
   }
 }
 
+// A transient ingress-admission timeout means the server could not admit the request before the
+// input barrier timed out while edits were still draining. The typed error stays on the wire
+// (RequestFailed / cvoloKind=InputBarrierTimeout) so the contract is never weakened; the client
+// only declines to escalate it to a user-visible error notification, because the request is
+// retried by the editor once typing settles.
+function isTransientAdmissionTimeout(error) {
+  return error?.code === -32803 && error?.data?.cvoloKind === 'InputBarrierTimeout';
+}
+
+class CvoloLanguageClient extends LanguageClient {
+  handleFailedRequest(type, token, error, defaultValue, showNotification = true) {
+    if (isTransientAdmissionTimeout(error)) {
+      outputChannel?.appendLine(
+        `[client] ${type.method} deferred: the server was still applying input.`
+      );
+      return defaultValue;
+    }
+
+    return super.handleFailedRequest(type, token, error, defaultValue, showNotification);
+  }
+}
+
 async function createAndStartClient(context) {
   let resolved;
   try {
@@ -101,7 +123,7 @@ async function createAndStartClient(context) {
     }
   };
 
-  const nextClient = new LanguageClient(
+  const nextClient = new CvoloLanguageClient(
     'cvolo',
     'Cvolo Language Server',
     serverOptions,

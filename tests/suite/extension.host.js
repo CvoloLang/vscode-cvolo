@@ -100,4 +100,73 @@ suite('Cvolo extension host contract', () => {
             decorationType.dispose();
         }
     });
+
+    test('normal typing surfaces no request-failure notifications', async () => {
+        // Regression guard for INC 3 (Stable Editor Intelligence): a stale semantic-token
+        // result must be answered with LSP ContentModified (-32801), which the language
+        // client treats as a silent cancellation. A RequestFailed (-32803) instead writes
+        // `[Error …] Request textDocument/semanticTokens/full failed.` to the client output
+        // channel and pops a user-visible error notification. Normal typing must produce neither.
+        const extension = vscode.extensions.getExtension(EXTENSION_ID);
+        const api = await extension.activate();
+        const client = api.getClient();
+        assert.ok(client && client.isRunning(), 'the language client must be running before typing');
+
+        const logged = [];
+        const channel = client.outputChannel;
+        const originalAppend = channel && typeof channel.appendLine === 'function'
+            ? channel.appendLine.bind(channel)
+            : undefined;
+        if (originalAppend) {
+            channel.appendLine = value => {
+                logged.push(String(value));
+                return originalAppend(value);
+            };
+        }
+
+        const notified = [];
+        let restoreShowError = () => {};
+        try {
+            const originalShowError = vscode.window.showErrorMessage;
+            vscode.window.showErrorMessage = message => {
+                notified.push(String(message));
+                return Promise.resolve(undefined);
+            };
+            restoreShowError = () => { vscode.window.showErrorMessage = originalShowError; };
+        } catch {
+            // Not writable in this host build; the output-channel capture above still covers the log line.
+        }
+
+        try {
+            const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'sample.cvl');
+            const document = await vscode.workspace.openTextDocument(file);
+            const editor = await vscode.window.showTextDocument(document);
+
+            // A rapid burst of edits widens the window in which an in-flight semantic-token
+            // request is superseded by newer input — exactly the path that used to surface
+            // a -32803 notification.
+            for (let i = 0; i < 8; i++) {
+                await editor.edit(builder => builder.insert(new vscode.Position(0, 0), ' '));
+                await new Promise(resolve => setTimeout(resolve, 25));
+            }
+            // Let the server answer the trailing requests against the latest version.
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Leave the on-disk fixture untouched (the document was never saved).
+            for (let i = 0; i < 20 && document.isDirty; i++) {
+                await vscode.commands.executeCommand('undo');
+            }
+        } finally {
+            if (originalAppend) {
+                channel.appendLine = originalAppend;
+            }
+            restoreShowError();
+        }
+
+        const loggedFailures = logged.filter(line => /Request .* failed|semanticTokens.*fail/i.test(line));
+        assert.deepEqual(loggedFailures, [],
+            `normal typing must not log request failures (full log: ${JSON.stringify(logged)})`);
+        assert.deepEqual(notified, [],
+            `normal typing must not raise error notifications: ${JSON.stringify(notified)}`);
+    });
 });
