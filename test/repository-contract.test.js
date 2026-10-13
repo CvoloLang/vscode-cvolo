@@ -28,7 +28,7 @@ test('extension keeps trace handling in vscode-languageclient', () => {
 });
 
 test('LanguageClient id, selector, crash policy and restart command are canonical', () => {
-  assert.match(extensionSource, /new LanguageClient\(\s*['"]cvolo['"]/s);
+  assert.match(extensionSource, /new (?:Cvolo)?LanguageClient\(\s*['"]cvolo['"]/s);
   assert.match(extensionSource, /documentSelector:\s*\[\{\s*scheme:\s*['"]file['"],\s*language:\s*['"]cvolo['"]\s*\}\]/s);
   assert.match(extensionSource, /connectionOptions:\s*\{\s*maxRestartCount:\s*0\s*\}/s);
   assert.match(extensionSource, /cvolo\.restartLanguageServer/);

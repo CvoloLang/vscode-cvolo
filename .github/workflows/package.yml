@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       languageServerVersion:
-        description: Official Language Server release version to bundle (e.g. 0.1.0-alpha.11)
+        description: Official Language Server release version to bundle (e.g. 0.1.0-alpha.12)
         required: true
-        default: 0.1.0-alpha.11
+        default: 0.1.0-alpha.12
 
   # workflow_dispatch only registers once this file exists on the default branch
   # (main), which Stage 10 must not touch. Until then, run the same packaging
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Push-triggered runs have no inputs; default to the pinned official release.
-      LSP_VERSION: ${{ github.event.inputs.languageServerVersion || '0.1.0-alpha.11' }}
+      LSP_VERSION: ${{ github.event.inputs.languageServerVersion || '0.1.0-alpha.12' }}
     strategy:
       fail-fast: false
       matrix:

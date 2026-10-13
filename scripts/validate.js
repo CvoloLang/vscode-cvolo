@@ -505,7 +505,7 @@ if (/require\(['"]vscode['"]\)/.test(editorIntelligenceRuntimeSource)) {
   fail('editor-intelligence-runtime.js must be Node-loadable without the VS Code extension-host API');
 }
 
-if (!extensionSource.match(/new LanguageClient\(\s*['"]cvolo['"]/s)) {
+if (!extensionSource.match(/new (?:Cvolo)?LanguageClient\(\s*['"]cvolo['"]/s)) {
   fail('LanguageClient id must be cvolo');
 }
 if (!extensionSource.match(/documentSelector:\s*\[\{\s*scheme:\s*['"]file['"],\s*language:\s*['"]cvolo['"]\s*\}\]/s)) {
