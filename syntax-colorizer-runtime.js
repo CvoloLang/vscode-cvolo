@@ -132,26 +132,20 @@ function computeSyntaxColorRanges(source) {
   const namespaceRanges = computeNamespaceRanges(code);
   const candidates = collectGenericCandidates(code);
   const genericDelimiterRanges = [];
-  const declaredTypeParameters = new Set();
+  const typeParameterRanges = [];
 
   for (const candidate of candidates) {
     for (const offset of candidate.delimiters) genericDelimiterRanges.push(range(offset, offset + 1));
-    if (isGenericDeclaration(code, candidate)) {
-      for (const identifier of candidate.identifiers) {
-        if (identifier.depth === 1) declaredTypeParameters.add(identifier.text);
-      }
+    if (!isGenericDeclaration(code, candidate)) continue;
+    // Only declaration-site type parameters are decorated. A document-global
+    // name set would relabel an unrelated concrete `T` at a usage site, and
+    // without scope analysis every usage is ambiguous, so ambiguous uses are
+    // omitted rather than guessed.
+    for (const identifier of candidate.identifiers) {
+      if (identifier.depth === 1) typeParameterRanges.push(range(identifier.start, identifier.end));
     }
   }
 
-  const typeParameterRanges = [];
-  if (declaredTypeParameters.size > 0) {
-    for (const candidate of candidates) {
-      for (const identifier of candidate.identifiers) {
-        if (declaredTypeParameters.has(identifier.text))
-          typeParameterRanges.push(range(identifier.start, identifier.end));
-      }
-    }
-  }
   return { namespaceRanges, genericDelimiterRanges, typeParameterRanges };
 }
 

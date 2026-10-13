@@ -33,7 +33,7 @@ test('generic delimiters are identified and declaration parameters use interface
   assert.deepEqual(texts(source, result.typeParameterRanges), ['T', 'D']);
 });
 
-test('nested generic type names stay types while known type parameters stay parameters', () => {
+test('type parameters are decorated only at declaration sites, never at ambiguous uses', () => {
   const source = [
     'class DataStoreBase<TEntity, TId> {',
     '  ILogger<DataStoreBase<TEntity, TId>> logger;',
@@ -42,9 +42,20 @@ test('nested generic type names stay types while known type parameters stay para
   const result = computeSyntaxColorRanges(source);
   const parameters = texts(source, result.typeParameterRanges);
 
-  assert.deepEqual(parameters, ['TEntity', 'TId', 'TEntity', 'TId']);
+  assert.deepEqual(parameters, ['TEntity', 'TId']);
   assert.equal(parameters.includes('DataStoreBase'), false);
   assert.equal(texts(source, result.genericDelimiterRanges).join(''), '<><<>>');
+});
+
+test('an unrelated concrete type named like a declared parameter is never relabeled', () => {
+  const source = [
+    'class Box<T> { }',
+    'val value = External<T>();'
+  ].join('\n');
+  const result = computeSyntaxColorRanges(source);
+
+  assert.deepEqual(texts(source, result.typeParameterRanges), ['T']);
+  assert.deepEqual(texts(source, result.genericDelimiterRanges), ['<', '>', '<', '>']);
 });
 
 test('generic method declarations collect their type parameters', () => {

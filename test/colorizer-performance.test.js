@@ -5,10 +5,10 @@ const { computeSyntaxColorRanges } = require('../syntax-colorizer-runtime');
 const { computeBraceColorOffsets, maskNonCode } = require('../brace-colorizer-runtime');
 const strings = (s, arr) => arr.map(({ start, end }) => s.slice(start, end));
 
-test('generic declarations and usages stay highlighted', () => {
+test('generic declarations stay highlighted while ambiguous uses are omitted', () => {
   const source = 'class Box<TEntity, TId> { ILogger<Box<TEntity, TId>> logger; }';
   const result = computeSyntaxColorRanges(source);
-  assert.deepEqual(strings(source, result.typeParameterRanges), ['TEntity', 'TId', 'TEntity', 'TId']);
+  assert.deepEqual(strings(source, result.typeParameterRanges), ['TEntity', 'TId']);
 });
 
 test('comparison operators are not generic delimiters', () => {
