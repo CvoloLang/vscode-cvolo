@@ -108,6 +108,24 @@ async function createAndStartClient(context) {
     clientOptions
   );
 
+  // The anchored-lens handshake is a client capability the extension owns. vscode-languageclient has
+  // no clientOptions.capabilities slot, so it is contributed as a static feature before start().
+  // Advertising it tells the server it may hand out opaque anchored lens tokens; a client that does
+  // not advertise it receives only inert lens text, never a positional command.
+  nextClient.registerFeature({
+    fillClientCapabilities(capabilities) {
+      const experimental = capabilities.experimental ?? {};
+      experimental.cvoloAnchoredLens = { version: 3, validateAction: true };
+      capabilities.experimental = experimental;
+    },
+    // vscode-languageclient treats every registered feature as a full Feature:
+    // initialize() is called from LanguageClient.start() and clear()/dispose() during
+    // teardown. All three must exist or start() throws "feature.initialize is not a function".
+    initialize() { },
+    clear() { },
+    dispose() { }
+  });
+
   try {
     await nextClient.start();
     return nextClient;
@@ -188,6 +206,8 @@ async function activate(context) {
   );
 
   schedule(lifecycle.start('initial start'));
+
+  return { getClient: () => lifecycle?.client };
 }
 
 async function deactivate() {
@@ -206,5 +226,6 @@ async function deactivate() {
 
 module.exports = {
   activate,
-  deactivate
+  deactivate,
+  getClient: () => lifecycle?.client
 };

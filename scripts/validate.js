@@ -35,7 +35,7 @@ function walkFiles(directory, predicate, output = []) {
     const relative = path.relative(root, absolute).replaceAll(path.sep, '/');
 
     if (entry.isDirectory()) {
-      if (['node_modules', '.git', '.github', 'scripts', 'test', 'tests', 'specs', 'server'].includes(entry.name)) {
+      if (['node_modules', '.git', '.github', '.vscode-test', '.vscode-test-web', 'scripts', 'test', 'tests', 'specs', 'server'].includes(entry.name)) {
         continue;
       }
       walkFiles(absolute, predicate, output);

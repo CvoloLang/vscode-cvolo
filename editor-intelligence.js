@@ -2,15 +2,23 @@
 
 const vscode = require('vscode');
 const {
+  ANCHORED_ACTION_KIND_SHOW_LAYOUT,
+  ANCHORED_ACTION_KIND_SHOW_REFERENCES,
+  ANCHORED_ACTION_KIND_UNAVAILABLE,
+  EXECUTE_ANCHORED_LENS_COMMAND,
   LAYOUT_SCHEME,
   LAYOUT_UNAVAILABLE_TEXT,
   REFERENCE_PROVIDER_COMMAND,
+  RESOLVE_ANCHORED_LENS_REQUEST,
   SHOW_REFERENCES_COMMAND,
   SHOW_REFERENCES_EDITOR_COMMAND,
   SHOW_TYPE_LAYOUT_COMMAND,
   TYPE_LAYOUT_REQUEST,
+  VALIDATE_ANCHORED_ACTION_REQUEST,
+  anchoredLensRequest,
   formatByteCount,
   layoutDocumentDescriptor,
+  normalizeAnchoredResult,
   normalizeTypeLayout,
   parseSourceTarget,
   renderLayout,
@@ -91,7 +99,16 @@ async function showTypeLayout(args, getClient, views, log) {
     return;
   }
 
-  const layout = normalizeTypeLayout(response);
+  await presentLayout(response, target.uri, views, log);
+}
+
+// Writes one compiler layout into a generated read-only view. The registry entry is presentation
+// state: the latest text, the spans to navigate by, the compiler's subject so the view can be
+// re-asked, the source document that anchors it, and a generation so a slow answer cannot replace a
+// newer one (§45). A manual Show Type Layout and an anchored lens action share this path, so an
+// anchored view refreshes exactly like a manual one.
+async function presentLayout(value, anchorUri, views, log) {
+  const layout = normalizeTypeLayout(value);
   if (!layout) {
     void vscode.window.showInformationMessage('Cvolo: no type layout is available at this position.');
     return;
@@ -101,25 +118,91 @@ async function showTypeLayout(args, getClient, views, log) {
   const view = renderLayout(layout, options);
 
   const uri = vscode.Uri.from(layoutDocumentDescriptor(layout));
-  // The registry entry is presentation state: the latest text, the spans to navigate by, the
-  // compiler's subject so the view can be re-asked, the source document that anchors it, and a
-  // generation so a slow answer cannot replace a newer one (§45).
   views.set(uri.toString(), {
     text: view.text,
     tokens: view.tokens,
     options,
     subject: layout.subject,
-    anchor: { uri: target.uri },
+    anchor: { uri: anchorUri },
     generation: 0
   });
 
-  log(`show type layout: ${layout.typeDisplay} (${layout.targetDisplay}) for ${target.uri}`);
+  log(`show type layout: ${layout.typeDisplay} (${layout.targetDisplay}) for ${anchorUri}`);
 
   const document = await vscode.workspace.openTextDocument(uri);
   await vscode.window.showTextDocument(document, {
     preview: true,
     viewColumn: vscode.ViewColumn.Beside
   });
+}
+
+// An anchored lens click. The lens carries only an opaque token; the server re-resolves the action
+// against the snapshot that is current and hands back a second, single-use token. The extension asks
+// the server to validate that second token before it does anything, and then performs exactly the
+// action the server returned — it never re-queries the reference provider with a stale position
+// (§19-§22, §47).
+async function executeAnchoredLens(args, getClient, views, log) {
+  const client = getClient();
+  if (!client) {
+    void vscode.window.showErrorMessage('Cvolo Language Server is not running.');
+    return;
+  }
+
+  const request = anchoredLensRequest(args);
+  if (!request) {
+    log('anchored lens ignored: the command did not carry a v3 lens token');
+    return;
+  }
+
+  let response;
+  try {
+    response = await client.sendRequest('workspace/executeCommand', {
+      command: RESOLVE_ANCHORED_LENS_REQUEST,
+      arguments: [request]
+    });
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Cvolo: the lens action could not be resolved. ${formatError(error)}`);
+    return;
+  }
+
+  const action = normalizeAnchoredResult(response);
+  if (!action || action.kind === ANCHORED_ACTION_KIND_UNAVAILABLE) {
+    void vscode.window.showInformationMessage('Cvolo: this lens is no longer valid for the current document.');
+    return;
+  }
+
+  let validation;
+  try {
+    validation = await client.sendRequest(VALIDATE_ANCHORED_ACTION_REQUEST, { actionToken: action.actionToken });
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Cvolo: the lens action could not be validated. ${formatError(error)}`);
+    return;
+  }
+
+  if (!validation || validation.valid !== true) {
+    void vscode.window.showInformationMessage('Cvolo: this lens is no longer valid for the current document.');
+    return;
+  }
+
+  if (action.kind === ANCHORED_ACTION_KIND_SHOW_REFERENCES) {
+    if (!action.anchor) {
+      void vscode.window.showInformationMessage('Cvolo: this lens is no longer valid for the current document.');
+      return;
+    }
+
+    const uri = vscode.Uri.parse(action.wireUri ?? request.wireUri);
+    const position = new vscode.Position(action.anchor.line, action.anchor.character);
+    const locations = action.locations.map(toLocation).filter(location => location !== null);
+
+    log(`anchored references: ${locations.length} location(s) at ${uri.toString()}:${action.anchor.line + 1}`);
+
+    await vscode.commands.executeCommand(SHOW_REFERENCES_EDITOR_COMMAND, uri, position, locations);
+    return;
+  }
+
+  if (action.kind === ANCHORED_ACTION_KIND_SHOW_LAYOUT) {
+    await presentLayout(action.layout, action.wireUri ?? request.wireUri, views, log);
+  }
 }
 
 // A view re-renders from the same registry entry, so a refresh only replaces the text and the spans.
@@ -382,6 +465,18 @@ function registerEditorIntelligence(context, { getClient, log = () => {} }) {
     } catch (error) {
       log(`show type layout failed: ${formatError(error)}`);
       void vscode.window.showErrorMessage(`Cvolo: showing the type layout failed. ${formatError(error)}`);
+    }
+  }));
+
+  // The only command an anchored lens may carry. It forwards the opaque lens token to the server and
+  // performs the action the server validated; the legacy cvolo.showReferences command is not a lens
+  // bridge and is never reachable from a lens (§20).
+  context.subscriptions.push(vscode.commands.registerCommand(EXECUTE_ANCHORED_LENS_COMMAND, async (...args) => {
+    try {
+      await executeAnchoredLens(args, getClient, views, log);
+    } catch (error) {
+      log(`anchored lens failed: ${formatError(error)}`);
+      void vscode.window.showErrorMessage(`Cvolo: the lens action failed. ${formatError(error)}`);
     }
   }));
 }

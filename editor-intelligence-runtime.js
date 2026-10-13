@@ -8,6 +8,18 @@ const TYPE_LAYOUT_REQUEST = 'cvolo/typeLayout';
 const REFERENCE_PROVIDER_COMMAND = 'vscode.executeReferenceProvider';
 const SHOW_REFERENCES_EDITOR_COMMAND = 'editor.action.showReferences';
 
+// The anchored-lens bridge. A CodeLens no longer carries a position; it carries an opaque,
+// session-bound token the server minted. The extension forwards the token and the server re-resolves
+// it against the snapshot that is current. Both directions are named here so the whole wire contract
+// lives in one module.
+const EXECUTE_ANCHORED_LENS_COMMAND = 'cvolo.executeAnchoredLens';
+const RESOLVE_ANCHORED_LENS_REQUEST = 'cvolo.resolveAnchoredLens.v3';
+const VALIDATE_ANCHORED_ACTION_REQUEST = 'cvolo/validateAnchoredAction.v3';
+const ANCHORED_LENS_SCHEMA_VERSION = 3;
+const ANCHORED_ACTION_KIND_SHOW_REFERENCES = 'ShowReferences';
+const ANCHORED_ACTION_KIND_SHOW_LAYOUT = 'ShowLayout';
+const ANCHORED_ACTION_KIND_UNAVAILABLE = 'Unavailable';
+
 const CODE_LENS_SETTING_DEFAULTS = Object.freeze({
   references: true,
   layout: true,
@@ -184,6 +196,87 @@ function normalizeTarget(value) {
       line: value.range.start.line,
       character: value.range.start.character
     }
+  };
+}
+
+// A bare wire position, used by an anchored action's anchor. It is not a target: it names a place in
+// a document the server already chose, so there is nothing here to resolve.
+function normalizePosition(value) {
+  if (!isPosition(value)) {
+    return null;
+  }
+
+  return {
+    line: value.line,
+    character: value.character
+  };
+}
+
+// The lens argument is opaque: the extension must forward it, never interpret it. A payload that does
+// not carry the exact v3 shape is refused rather than guessed at, so a stale or malformed lens never
+// reaches the server as a request (§21).
+function anchoredLensRequest(args) {
+  const value = Array.isArray(args) ? args[0] : args;
+  if (!value || typeof value !== 'object'
+      || value.schemaVersion !== ANCHORED_LENS_SCHEMA_VERSION
+      || typeof value.lensToken !== 'string' || value.lensToken.length === 0
+      || typeof value.wireUri !== 'string' || value.wireUri.length === 0) {
+    return null;
+  }
+
+  return {
+    schemaVersion: value.schemaVersion,
+    lensToken: value.lensToken,
+    wireUri: normalizeUriText(value.wireUri)
+  };
+}
+
+// The server's answer to an anchored lens. The locations and the layout are the compiler's; the
+// extension re-derives nothing. An action kind the runtime does not know is not performed, and an
+// Unavailable answer carries no token to act on.
+function normalizeAnchoredResult(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const kind = value.kind;
+  if (kind !== ANCHORED_ACTION_KIND_SHOW_REFERENCES
+      && kind !== ANCHORED_ACTION_KIND_SHOW_LAYOUT
+      && kind !== ANCHORED_ACTION_KIND_UNAVAILABLE) {
+    return null;
+  }
+
+  if (kind === ANCHORED_ACTION_KIND_UNAVAILABLE) {
+    return {
+      kind,
+      actionToken: null,
+      wireUri: null,
+      anchor: null,
+      locations: [],
+      layout: null,
+      reason: typeof value.reason === 'string' ? value.reason : null
+    };
+  }
+
+  const actionToken = typeof value.actionToken === 'string' && value.actionToken.length > 0
+    ? value.actionToken
+    : null;
+  if (!actionToken) {
+    return null;
+  }
+
+  return {
+    kind,
+    actionToken,
+    wireUri: typeof value.wireUri === 'string' && value.wireUri.length > 0
+      ? normalizeUriText(value.wireUri)
+      : null,
+    anchor: normalizePosition(value.anchor),
+    locations: Array.isArray(value.locations)
+      ? value.locations.map(normalizeTarget).filter(target => target !== null)
+      : [],
+    layout: kind === ANCHORED_ACTION_KIND_SHOW_LAYOUT ? normalizeTypeLayout(value.layout) : null,
+    reason: null
   };
 }
 
@@ -519,9 +612,14 @@ function layoutDocumentDescriptor(value) {
 }
 
 module.exports = {
+  ANCHORED_ACTION_KIND_SHOW_LAYOUT,
+  ANCHORED_ACTION_KIND_SHOW_REFERENCES,
+  ANCHORED_ACTION_KIND_UNAVAILABLE,
+  ANCHORED_LENS_SCHEMA_VERSION,
   CODE_LENS_SETTING_DEFAULTS,
   COLUMN_SEPARATOR,
   DEFAULT_LAYOUT_OPTIONS,
+  EXECUTE_ANCHORED_LENS_COMMAND,
   INLAY_HINT_SETTING_DEFAULTS,
   LAYOUT_DOCUMENT_NAME,
   LAYOUT_INCOMPLETE_TEXT,
@@ -529,13 +627,17 @@ module.exports = {
   LAYOUT_UNAVAILABLE_TEXT,
   OFFSET_FORMATS,
   REFERENCE_PROVIDER_COMMAND,
+  RESOLVE_ANCHORED_LENS_REQUEST,
   SHOW_REFERENCES_COMMAND,
   SHOW_REFERENCES_EDITOR_COMMAND,
   SHOW_TYPE_LAYOUT_COMMAND,
   TYPE_LAYOUT_REQUEST,
+  VALIDATE_ANCHORED_ACTION_REQUEST,
+  anchoredLensRequest,
   formatByteCount,
   formatTypeLayout,
   layoutDocumentDescriptor,
+  normalizeAnchoredResult,
   normalizeTypeLayout,
   parseSourceTarget,
   paddingPercentage,
