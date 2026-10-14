@@ -40,6 +40,14 @@ test('the theme distinguishes compiler-proven constants from ordinary variables'
     'the theme must colour the negotiated cvoloConstant modifier where a client advertises it');
 });
 
+test('the theme colours imported extern functions without recolouring the extern keyword', () => {
+  const colours = theme.semanticTokenColors;
+  assert.ok(Object.prototype.hasOwnProperty.call(colours, 'function:cvoloExternFunction'),
+    'the theme must colour the negotiated cvoloExternFunction modifier where a client advertises it');
+  assert.ok(colours.keyword === '#569CD6',
+    'the extern keyword must keep its ordinary keyword colour');
+});
+
 test('the theme keeps TextMate lexical colours as a grammar-based fallback', () => {
   assert.ok(Array.isArray(theme.tokenColors) && theme.tokenColors.length > 0,
     'TextMate tokenColors remain the fallback colouring mechanism without the language server');
