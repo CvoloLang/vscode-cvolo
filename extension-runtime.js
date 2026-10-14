@@ -2,9 +2,45 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const { executableForRid, ridFor } = require('./server-platform');
 
 const PATH_SERVER_COMMAND = 'cvolo-language-server';
+const DIAGNOSTIC_LOG_DIRECTORY_OPTION = '--diagnostic-log-dir';
+
+// The bundled/staged server and a user-configured one are released on different
+// cadences, so the extension must not assume the running server understands the
+// session diagnostic-log option. Probe the server's own help output once per
+// process and pass the option only when it is advertised; otherwise the client
+// keeps working without a materialized diagnostic log.
+const diagnosticLogSupportCache = new Map();
+
+function supportsDiagnosticLogDirectory(command, { spawnSyncApi = spawnSync, cache = diagnosticLogSupportCache } = {}) {
+  const key = String(command ?? '');
+  if (key.length === 0) {
+    return false;
+  }
+
+  if (cache.has(key)) {
+    return cache.get(key);
+  }
+
+  let supported = false;
+  try {
+    const result = spawnSyncApi(key, ['--help'], {
+      encoding: 'utf8',
+      timeout: 10000,
+      windowsHide: true
+    });
+    const output = `${result?.stdout ?? ''}\n${result?.stderr ?? ''}`;
+    supported = output.includes(DIAGNOSTIC_LOG_DIRECTORY_OPTION);
+  } catch {
+    supported = false;
+  }
+
+  cache.set(key, supported);
+  return supported;
+}
 
 function currentRid(platform = process.platform, arch = process.arch) {
   return ridFor(platform, arch);
@@ -251,11 +287,13 @@ function formatBundleProvenance(manifest, source) {
 
 module.exports = {
   PATH_SERVER_COMMAND,
+  DIAGNOSTIC_LOG_DIRECTORY_OPTION,
   LifecycleController,
   bundleManifestPath,
   bundledServerPath,
   currentRid,
   formatBundleProvenance,
   readBundleManifest,
-  resolveServerCommand
+  resolveServerCommand,
+  supportsDiagnosticLogDirectory
 };

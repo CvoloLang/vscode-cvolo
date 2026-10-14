@@ -11,7 +11,8 @@ const {
   currentRid,
   formatBundleProvenance,
   readBundleManifest,
-  resolveServerCommand
+  resolveServerCommand,
+  supportsDiagnosticLogDirectory
 } = require('../extension-runtime');
 
 function fakeFs(entries = {}) {
@@ -464,4 +465,29 @@ test('formatBundleProvenance renders the provenance block', () => {
       'Compiler compatibility: 0.0.21'
     ]
   );
+});
+
+test('supportsDiagnosticLogDirectory detects the advertised option and caches it', () => {
+  const calls = [];
+  const cache = new Map();
+  const spawnSyncApi = (command, args) => {
+    calls.push({ command, args });
+    return { stdout: 'Options:\n  --stdio\n  --diagnostic-log-dir <dir>\n', stderr: '' };
+  };
+
+  assert.equal(supportsDiagnosticLogDirectory('server.exe', { spawnSyncApi, cache }), true);
+  // Cached on the second call: the probe must not spawn the server again.
+  assert.equal(supportsDiagnosticLogDirectory('server.exe', { spawnSyncApi, cache }), true);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], { command: 'server.exe', args: ['--help'] });
+});
+
+test('supportsDiagnosticLogDirectory is false for an older server and never throws', () => {
+  const olderServer = () => ({ stdout: 'Options:\n  --stdio\n  --log <log>\n', stderr: '' });
+  assert.equal(supportsDiagnosticLogDirectory('old.exe', { spawnSyncApi: olderServer, cache: new Map() }), false);
+
+  const throwingSpawn = () => { throw new Error('ENOENT'); };
+  assert.equal(supportsDiagnosticLogDirectory('missing.exe', { spawnSyncApi: throwingSpawn, cache: new Map() }), false);
+
+  assert.equal(supportsDiagnosticLogDirectory('', { spawnSyncApi: olderServer, cache: new Map() }), false);
 });

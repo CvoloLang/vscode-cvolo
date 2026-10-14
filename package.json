@@ -244,6 +244,10 @@
       {
         "command": "cvolo.showTypeLayout",
         "title": "Cvolo: Show Type Layout"
+      },
+      {
+        "command": "cvolo.openDiagnosticLog",
+        "title": "Cvolo: Open Diagnostic Log"
       }
     ],
     "menus": {

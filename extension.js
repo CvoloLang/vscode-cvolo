@@ -1,8 +1,10 @@
 'use strict';
 
 const vscode = require('vscode');
+const fs = require('fs');
+const path = require('path');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
-const { LifecycleController, currentRid, formatBundleProvenance, readBundleManifest, resolveServerCommand } = require('./extension-runtime');
+const { LifecycleController, currentRid, formatBundleProvenance, readBundleManifest, resolveServerCommand, supportsDiagnosticLogDirectory } = require('./extension-runtime');
 const { registerCvoloBraceColorizer } = require('./brace-colorizer');
 const { registerCvoloSyntaxColorizer } = require('./syntax-colorizer');
 const { registerEditorIntelligence } = require('./editor-intelligence');
@@ -36,6 +38,60 @@ function reportResolutionFailure(error) {
   void vscode.window.showErrorMessage(
     `Cvolo Language Server could not be resolved. ${message}`
   );
+}
+
+// The server cannot infer a managed location; the client owns the path. Logs live
+// under the extension's private global storage, never in the user's workspace.
+function diagnosticLogDirectory(context) {
+  return path.join(context.globalStorageUri.fsPath, 'logs');
+}
+
+function newestDiagnosticLog(directory) {
+  let entries;
+  try {
+    entries = fs.readdirSync(directory, { withFileTypes: true });
+  } catch {
+    return undefined;
+  }
+
+  let newest;
+  let newestTime = -Infinity;
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.startsWith('cvolo-lsp-') || !entry.name.endsWith('.log')) {
+      continue;
+    }
+
+    const candidate = path.join(directory, entry.name);
+    try {
+      const time = fs.statSync(candidate).mtimeMs;
+      if (time > newestTime) {
+        newestTime = time;
+        newest = candidate;
+      }
+    } catch {
+      // A log rotated away between read and stat is simply not a candidate.
+    }
+  }
+
+  return newest;
+}
+
+async function openDiagnosticLog(context) {
+  const directory = diagnosticLogDirectory(context);
+  const target = newestDiagnosticLog(directory);
+  if (!target) {
+    void vscode.window.showInformationMessage(
+      'No Cvolo diagnostic log has been written for this session. A log is created automatically when the language server hits an internal error.'
+    );
+    return;
+  }
+
+  try {
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(target));
+    await vscode.window.showTextDocument(document, { preview: false });
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Could not open the Cvolo diagnostic log: ${formatError(error)}`);
+  }
 }
 
 function logBundledProvenance(context, source) {
@@ -101,11 +157,21 @@ async function createAndStartClient(context) {
     logBundledProvenance(context, resolved.source);
   }
 
-  outputChannel.appendLine('[client] server arguments: --stdio');
+  const serverArguments = ['--stdio'];
+  const diagnosticDirectory = diagnosticLogDirectory(context);
+  if (supportsDiagnosticLogDirectory(resolved.command)) {
+    serverArguments.push('--diagnostic-log-dir', diagnosticDirectory);
+  } else {
+    outputChannel.appendLine(
+      '[client] this server build does not support --diagnostic-log-dir; the session diagnostic log will not be materialized.'
+    );
+  }
+
+  outputChannel.appendLine(`[client] server arguments: ${serverArguments.join(' ')}`);
 
   const serverOptions = {
     command: resolved.command,
-    args: ['--stdio']
+    args: serverArguments
   };
 
   const clientOptions = {
@@ -210,6 +276,12 @@ async function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand('cvolo.restartLanguageServer', () => {
       requestRestart('manual command');
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('cvolo.openDiagnosticLog', () => {
+      schedule(openDiagnosticLog(context));
     })
   );
 

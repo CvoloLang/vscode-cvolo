@@ -51,16 +51,16 @@ suite('Cvolo extension host contract', () => {
         assert.ok(client.initializeResult, 'the client must complete the initialize handshake');
     });
 
-    test('registers the restart, layout and anchored-lens commands', async () => {
+    test('registers the restart, layout, anchored-lens and diagnostic-log commands', async () => {
         const commands = await vscode.commands.getCommands(true);
-        for (const id of ['cvolo.restartLanguageServer', 'cvolo.showTypeLayout', 'cvolo.executeAnchoredLens']) {
+        for (const id of ['cvolo.restartLanguageServer', 'cvolo.showTypeLayout', 'cvolo.executeAnchoredLens', 'cvolo.openDiagnosticLog']) {
             assert.ok(commands.includes(id), `command ${id} must be registered in the host`);
         }
     });
 
-    test('contributes only the restart and layout commands, never the legacy references command', () => {
+    test('contributes only the restart, layout and diagnostic-log commands, never the legacy references command', () => {
         const contributed = (packageJson.contributes.commands || []).map(entry => entry.command).sort();
-        assert.deepEqual(contributed, ['cvolo.restartLanguageServer', 'cvolo.showTypeLayout']);
+        assert.deepEqual(contributed, ['cvolo.openDiagnosticLog', 'cvolo.restartLanguageServer', 'cvolo.showTypeLayout']);
         assert.ok(!contributed.includes('cvolo.showReferences'),
             'cvolo.showReferences must never be a palette command');
     });
