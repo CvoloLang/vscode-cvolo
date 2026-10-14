@@ -263,6 +263,8 @@
     "method": "#DCDCAA",
     "operator": "#D4D4D4",
     "keyword": "#569CD6",
+    "variable:readonly:static": "#4FC1FF",
+    "variable:cvoloConstant": "#4FC1FF",
     "property:cvolo": "#D4D4D4",
     "variable:cvolo": "#9CDCFE",
     "parameter:cvolo": "#9CDCFE",

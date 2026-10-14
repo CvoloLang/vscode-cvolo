@@ -32,6 +32,14 @@ test('the theme enables semantic highlighting for the language-server token type
   }
 });
 
+test('the theme distinguishes compiler-proven constants from ordinary variables', () => {
+  const colours = theme.semanticTokenColors;
+  assert.ok(Object.prototype.hasOwnProperty.call(colours, 'variable:readonly:static'),
+    'the theme must colour immutable globals (variable:readonly:static) as constants for standards-only clients');
+  assert.ok(Object.prototype.hasOwnProperty.call(colours, 'variable:cvoloConstant'),
+    'the theme must colour the negotiated cvoloConstant modifier where a client advertises it');
+});
+
 test('the theme keeps TextMate lexical colours as a grammar-based fallback', () => {
   assert.ok(Array.isArray(theme.tokenColors) && theme.tokenColors.length > 0,
     'TextMate tokenColors remain the fallback colouring mechanism without the language server');
