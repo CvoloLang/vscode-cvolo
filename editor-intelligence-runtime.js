@@ -611,6 +611,56 @@ function layoutDocumentDescriptor(value) {
   };
 }
 
+function isIdentifierChar(character) {
+  return /[A-Za-z0-9_]/.test(character);
+}
+
+/**
+ * True when `offset` sits inside an aggregate initializer's field region: the innermost unmatched
+ * `{` before it is preceded by an identifier that is itself preceded by `=` (`Window w = Window {`,
+ * `var w = Window {`). Blocks, `if (...) {`, `struct X {` and function bodies are deliberately
+ * excluded so an inserted newline never triggers a completion storm. Not string/comment aware; a
+ * false positive only opens the suggestion list, it never edits text.
+ */
+function isInsideAggregateInitializer(text, offset) {
+  if (typeof text !== 'string' || !Number.isInteger(offset)) {
+    return false;
+  }
+
+  let depth = 0;
+  for (let i = Math.min(offset, text.length) - 1; i >= 0; i -= 1) {
+    const character = text[i];
+    if (character === '}') {
+      depth += 1;
+    } else if (character === '{') {
+      if (depth > 0) {
+        depth -= 1;
+        continue;
+      }
+      return braceOpensInitializer(text, i);
+    }
+  }
+
+  return false;
+}
+
+function braceOpensInitializer(text, braceIndex) {
+  let index = braceIndex - 1;
+  while (index >= 0 && /\s/.test(text[index])) {
+    index -= 1;
+  }
+  if (index < 0 || !isIdentifierChar(text[index])) {
+    return false;
+  }
+  while (index >= 0 && isIdentifierChar(text[index])) {
+    index -= 1;
+  }
+  while (index >= 0 && /\s/.test(text[index])) {
+    index -= 1;
+  }
+  return index >= 0 && text[index] === '=';
+}
+
 module.exports = {
   ANCHORED_ACTION_KIND_SHOW_LAYOUT,
   ANCHORED_ACTION_KIND_SHOW_REFERENCES,
@@ -636,6 +686,7 @@ module.exports = {
   anchoredLensRequest,
   formatByteCount,
   formatTypeLayout,
+  isInsideAggregateInitializer,
   layoutDocumentDescriptor,
   normalizeAnchoredResult,
   normalizeTypeLayout,

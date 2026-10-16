@@ -17,6 +17,7 @@ const {
   VALIDATE_ANCHORED_ACTION_REQUEST,
   anchoredLensRequest,
   formatByteCount,
+  isInsideAggregateInitializer,
   layoutDocumentDescriptor,
   normalizeAnchoredResult,
   normalizeTypeLayout,
@@ -421,6 +422,29 @@ function registerLayoutProviders(context, views) {
   }));
 }
 
+// When Enter is pressed inside a recognized aggregate initializer's braces, keep the field
+// suggestions reachable without making the user invoke Ctrl+Space. Guarded by a client-side
+// brace/`=` scan so ordinary blocks, calls and unrelated braces never trigger a request.
+function maybeTriggerInitializerSuggest(event) {
+  const editor = vscode.window.visibleTextEditors.find(candidate => candidate.document === event.document);
+  if (!editor) {
+    return;
+  }
+
+  const insertedNewline = event.contentChanges.some(change => /[\r\n]/.test(change.text));
+  if (!insertedNewline) {
+    return;
+  }
+
+  const text = event.document.getText();
+  const offset = event.document.offsetAt(editor.selection.active);
+  if (!isInsideAggregateInitializer(text, offset)) {
+    return;
+  }
+
+  void vscode.commands.executeCommand('editor.action.triggerSuggest');
+}
+
 function registerEditorIntelligence(context, { getClient, log = () => {} }) {
   const views = new Map();
 
@@ -442,6 +466,7 @@ function registerEditorIntelligence(context, { getClient, log = () => {} }) {
   context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
     if (event.document.languageId === 'cvolo') {
       refresher.schedule();
+      maybeTriggerInitializerSuggest(event);
     }
   }));
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {

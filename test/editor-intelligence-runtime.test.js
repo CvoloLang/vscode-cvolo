@@ -542,3 +542,23 @@ test('a padding token names the field the internal padding precedes, and nothing
   assert.equal(tail.before, null);
   assert.equal(tail.alignment, 8);
 });
+
+test('isInsideAggregateInitializer recognizes an aggregate literal but not blocks or calls', () => {
+  // `Window w = Window {` ... cursor inside the braces.
+  assert.equal(runtime.isInsideAggregateInitializer('Window w = Window {\n    ', 25), true);
+  assert.equal(runtime.isInsideAggregateInitializer('var w = Window {\n        ', 22), true);
+  // Nested initializer keeps the innermost one in view.
+  assert.equal(runtime.isInsideAggregateInitializer('var w = Window { inner = Box {\n    ', 34), true);
+  // Blocks, conditionals, struct declarations and function bodies are not initializers.
+  assert.equal(runtime.isInsideAggregateInitializer('int main() {\n    ', 16), false);
+  assert.equal(runtime.isInsideAggregateInitializer('if (ok) {\n    ', 12), false);
+  assert.equal(runtime.isInsideAggregateInitializer('struct Window {\n    ', 18), false);
+  // A closed brace before the cursor leaves no unmatched initializer.
+  assert.equal(runtime.isInsideAggregateInitializer('var w = Window { Width = 1 };\n', 31), false);
+});
+
+test('isInsideAggregateInitializer ignores malformed input instead of throwing', () => {
+  assert.equal(runtime.isInsideAggregateInitializer(null, 0), false);
+  assert.equal(runtime.isInsideAggregateInitializer('abc', 1.5), false);
+  assert.equal(runtime.isInsideAggregateInitializer('', 0), false);
+});
