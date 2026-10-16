@@ -234,6 +234,10 @@
     "configurationDefaults": {
       "files.readonlyInclude": {
         "**/.cvolo/build/**": true
+      },
+      "[cvolo]": {
+        "editor.wordBasedSuggestions": "off",
+        "editor.suggest.showWords": false
       }
     },
     "commands": [

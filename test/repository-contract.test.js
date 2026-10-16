@@ -44,3 +44,9 @@ test('extracted package sources are marked read-only', () => {
   const readonlyInclude = pkg.contributes.configurationDefaults?.['files.readonlyInclude'];
   assert.equal(readonlyInclude?.['**/.cvolo/build/**'], true);
 });
+
+test('word-based suggestions are disabled for Cvolo so only compiler-owned items appear', () => {
+  const languageDefaults = pkg.contributes.configurationDefaults?.['[cvolo]'];
+  assert.equal(languageDefaults?.['editor.wordBasedSuggestions'], 'off');
+  assert.equal(languageDefaults?.['editor.suggest.showWords'], false);
+});
