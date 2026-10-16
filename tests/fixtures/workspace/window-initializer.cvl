@@ -1,0 +1,13 @@
+// Fixture for the extension-host hover/completion checks. It intentionally leaves the
+// aggregate initializer incomplete (no field names, no values) so the host observes the
+// same shape the user typed: a typed local declaration followed by an open literal.
+struct Window { void* Ptr; int Width; }
+
+int main()
+{
+    Window windo = Window
+    {
+
+    };
+    return 0;
+}

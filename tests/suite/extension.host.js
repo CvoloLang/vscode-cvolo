@@ -19,6 +19,45 @@ const EXTENSION_ID = 'cvololang.cvolo-language';
 const root = path.resolve(__dirname, '..', '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Waits for the language client to reach a running state and returns it.
+async function runningClient() {
+    const extension = vscode.extensions.getExtension(EXTENSION_ID);
+    const api = await extension.activate();
+    const deadline = Date.now() + 45000;
+    while (Date.now() < deadline) {
+        const client = api.getClient();
+        if (client && client.isRunning()) {
+            return client;
+        }
+        await delay(250);
+    }
+    throw new Error('the language client must reach a running state');
+}
+
+// Flattens the Hover[] result of the executeHoverProvider command into plain text.
+function hoverText(hovers) {
+    const parts = [];
+    for (const hover of hovers || []) {
+        const contents = Array.isArray(hover.contents) ? hover.contents : [hover.contents];
+        for (const entry of contents) {
+            if (typeof entry === 'string') {
+                parts.push(entry);
+            } else if (entry && typeof entry.value === 'string') {
+                parts.push(entry.value);
+            }
+        }
+    }
+    return parts.join('\n');
+}
+
+function completionLabels(list) {
+    return (list.items || []).map(item => (typeof item.label === 'string' ? item.label : item.label.label));
+}
+
 suite('Cvolo extension host contract', () => {
     test('the extension is present and activates inside VS Code', async () => {
         const extension = vscode.extensions.getExtension(EXTENSION_ID);
@@ -168,5 +207,66 @@ suite('Cvolo extension host contract', () => {
             `normal typing must not log request failures (full log: ${JSON.stringify(logged)})`);
         assert.deepEqual(notified, [],
             `normal typing must not raise error notifications: ${JSON.stringify(notified)}`);
+    });
+
+    test('negotiates the initializer trigger characters on the running server', async () => {
+        // WIRE-017 / INIT-026: the running server must advertise field-completion triggers
+        // for the initializer context; the host reads them from the real initialize result.
+        const client = await runningClient();
+        const triggerCharacters = (client.initializeResult.capabilities.completionProvider || {}).triggerCharacters || [];
+        for (const trigger of ['{', ',', '.']) {
+            assert.ok(triggerCharacters.includes(trigger),
+                `the server must advertise '${trigger}' as a completion trigger (got ${JSON.stringify(triggerCharacters)})`);
+        }
+    });
+
+    test('hover reports the typed local and its type for an incomplete initializer', async () => {
+        // HOV-002/HOV-003 host evidence: `Window windo` must render the type and the local
+        // distinctly, and the local must not be displayed as a parameter or a bare `int`.
+        const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'window-initializer.cvl');
+        const document = await vscode.workspace.openTextDocument(file);
+        await vscode.window.showTextDocument(document);
+        await runningClient();
+        await delay(2000);
+
+        const text = document.getText();
+        const localPosition = document.positionAt(text.indexOf('windo') + 1);
+        const localHovers = await vscode.commands.executeCommand('vscode.executeHoverProvider', document.uri, localPosition);
+        const localText = hoverText(localHovers);
+        assert.match(localText, /Window windo/,
+            `hover on the local must report 'Window windo' (got ${JSON.stringify(localText)})`);
+        assert.ok(!/\bint windo\b/.test(localText),
+            `hover on the local must never report 'int windo' (got ${JSON.stringify(localText)})`);
+
+        const typePosition = document.positionAt(text.indexOf('Window') + 1);
+        const typeHovers = await vscode.commands.executeCommand('vscode.executeHoverProvider', document.uri, typePosition);
+        const typeText = hoverText(typeHovers);
+        assert.match(typeText, /struct Window/,
+            `hover on the type must report 'struct Window' (got ${JSON.stringify(typeText)})`);
+    });
+
+    test('completion inside an aggregate literal lists the struct fields', async () => {
+        // INIT-021/WIRE-010 host evidence: an incomplete `Window {` still offers the
+        // resolved struct's fields and never an unrelated free function.
+        const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'window-initializer.cvl');
+        const document = await vscode.workspace.openTextDocument(file);
+        await vscode.window.showTextDocument(document);
+        await runningClient();
+        await delay(2000);
+
+        const text = document.getText();
+        const brace = text.indexOf('{', text.indexOf('Window windo'));
+        const innerIndex = text.indexOf('\n\n', brace) + 1;
+        const position = document.positionAt(innerIndex);
+
+        const list = await vscode.commands.executeCommand(
+            'vscode.executeCompletionItemProvider', document.uri, position);
+        const labels = completionLabels(list);
+        assert.ok(labels.includes('Ptr'),
+            `the field 'Ptr' must be offered (got ${JSON.stringify(labels)})`);
+        assert.ok(labels.includes('Width'),
+            `the field 'Width' must be offered (got ${JSON.stringify(labels)})`);
+        assert.ok(!labels.includes('getchar'),
+            `unrelated free functions must never be offered (got ${JSON.stringify(labels)})`);
     });
 });
