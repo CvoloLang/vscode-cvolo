@@ -237,7 +237,13 @@
       },
       "[cvolo]": {
         "editor.wordBasedSuggestions": "off",
-        "editor.suggest.showWords": false
+        "editor.suggest.showWords": false,
+        "editor.quickSuggestions": {
+          "other": "on",
+          "comments": "off",
+          "strings": "off"
+        },
+        "editor.suggestOnTriggerCharacters": true
       }
     },
     "commands": [
