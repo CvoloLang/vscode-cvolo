@@ -265,7 +265,7 @@
     "keyword": "#569CD6",
     "variable:readonly:static": "#4FC1FF",
     "variable:cvoloConstant": "#4FC1FF",
-    "function:cvoloExternFunction": "#C586C0",
+    "function:cvoloExternFunction": "#D7A0FF",
     "property:cvolo": "#D4D4D4",
     "variable:cvolo": "#9CDCFE",
     "parameter:cvolo": "#9CDCFE",
