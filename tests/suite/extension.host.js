@@ -269,4 +269,47 @@ suite('Cvolo extension host contract', () => {
         assert.ok(!labels.includes('getchar'),
             `unrelated free functions must never be offered (got ${JSON.stringify(labels)})`);
     });
+
+    test('built-in type names are offered while typing a declaration', async () => {
+        const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'type-completion.cvl');
+        const document = await vscode.workspace.openTextDocument(file);
+        await vscode.window.showTextDocument(document);
+        await runningClient();
+        await delay(2000);
+
+        const text = document.getText();
+        const at = text.indexOf('i\n') + 1;
+        const position = document.positionAt(at);
+
+        const list = await vscode.commands.executeCommand(
+            'vscode.executeCompletionItemProvider', document.uri, position);
+        const labels = completionLabels(list);
+        assert.ok(labels.includes('int'),
+            `the built-in type 'int' must be offered (got ${JSON.stringify(labels)})`);
+        assert.ok(labels.includes('if'),
+            `the keyword 'if' must still be offered (got ${JSON.stringify(labels)})`);
+        assert.ok(!labels.includes('getchar'),
+            `unrelated free functions must never be offered (got ${JSON.stringify(labels)})`);
+    });
+
+    test('a generic type argument offers type names and not statement keywords', async () => {
+        const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'generic-type-completion.cvl');
+        const document = await vscode.workspace.openTextDocument(file);
+        await vscode.window.showTextDocument(document);
+        await runningClient();
+        await delay(2000);
+
+        const text = document.getText();
+        const marker = 'Option<i';
+        const at = text.indexOf(marker) + marker.length;
+        const position = document.positionAt(at);
+
+        const list = await vscode.commands.executeCommand(
+            'vscode.executeCompletionItemProvider', document.uri, position);
+        const labels = completionLabels(list);
+        assert.ok(labels.includes('int'),
+            `the type 'int' must be offered inside a generic argument (got ${JSON.stringify(labels)})`);
+        assert.ok(!labels.includes('if'),
+            `statement keywords must not leak into a generic argument (got ${JSON.stringify(labels)})`);
+    });
 });

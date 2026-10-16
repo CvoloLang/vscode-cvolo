@@ -1,0 +1,8 @@
+// Minimal fixture for generic-argument type completion in the extension host.
+struct GenericProbe { int Width; }
+
+int main()
+{
+    Option<i
+    return 0;
+}

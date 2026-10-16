@@ -1,0 +1,9 @@
+// Minimal fixture for declaration-position type completion in the extension host.
+// The incomplete line `i` must offer both the built-in type `int` and the keyword `if`.
+struct DeclProbe { int Width; }
+
+int main()
+{
+    i
+    return 0;
+}
