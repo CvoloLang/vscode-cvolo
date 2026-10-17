@@ -98,13 +98,22 @@ function count(value) {
 // Explain pointer-shaped values without inventing ABI facts. The compiler provides
 // byte size and alignment but does not currently expose the data/length/padding
 // decomposition of a fat pointer. Never derive internal widths from total size.
-function fieldRepresentation(typeDisplay) {
+function fieldRepresentation(typeDisplay, size = null, alignment = null) {
   if (typeof typeDisplay !== 'string') {
     return null;
   }
   const name = typeDisplay.trim();
   if (name.endsWith('[]')) {
-    return 'fat pointer (data + length; component sizes not provided)';
+    // The Cvolo slice ABI is { pointer, i32 length }, aligned up to
+    // the pointer alignment. Only show a byte decomposition when the
+    // reported layout confirms it; do not invent unsupported targets.
+    if (Number.isInteger(size) && Number.isInteger(alignment)
+      && (alignment === 4 || alignment === 8)
+      && size === Math.ceil((alignment + 4) / alignment) * alignment) {
+      const padding = size - alignment - 4;
+      return `fat pointer: ${size} bytes = data ${alignment} + length 4 + padding ${padding}`;
+    }
+    return 'fat pointer (data + 32-bit length; sizes depend on target ABI)';
   }
   if (name.endsWith('*')) {
     return 'thin pointer (address)';
