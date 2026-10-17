@@ -57,7 +57,7 @@ function newestDiagnosticLog(directory) {
   let newest;
   let newestTime = -Infinity;
   for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.startsWith('cvolo-lsp-') || !entry.name.endsWith('.log')) {
+    if (!entry.isFile() || !(entry.name.startsWith('cvolo-lsp-') || entry.name.startsWith('cvolo-debug-')) || !entry.name.endsWith('.log')) {
       continue;
     }
 
@@ -81,7 +81,7 @@ async function openDiagnosticLog(context) {
   const target = newestDiagnosticLog(directory);
   if (!target) {
     void vscode.window.showInformationMessage(
-      'No Cvolo diagnostic log has been written for this session. A log is created automatically when the language server hits an internal error.'
+      'No Cvolo log is available. Enable cvolo.debug.logging to save an ongoing debug log, or wait for an internal error to create an incident log.'
     );
     return;
   }
