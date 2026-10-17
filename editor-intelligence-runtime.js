@@ -111,12 +111,12 @@ function fieldRepresentation(typeDisplay, size = null, alignment = null) {
       && (alignment === 4 || alignment === 8)
       && size === Math.ceil((alignment + 4) / alignment) * alignment) {
       const padding = size - alignment - 4;
-      return `fat pointer: ${size} bytes = data ${alignment} + length 4 + padding ${padding}`;
+      return `ptr ${alignment} B + len 4 B + pad ${padding} B`;
     }
-    return 'fat pointer (data + 32-bit length; sizes depend on target ABI)';
+    return 'ptr + len 4 B (target-dependent)';
   }
   if (name.endsWith('*')) {
-    return 'thin pointer (address)';
+    return 'address';
   }
   return null;
 }
@@ -594,7 +594,12 @@ function renderLayout(value, options) {
           display: member.typeDisplay,
           definition: navigation?.typeDefinition ?? null,
           nestedLayout: navigation?.nestedLayout ?? null,
-          facts: null
+          facts: null,
+          fieldStorage: {
+            size: member.size,
+            alignment: member.alignment,
+            typeDisplay: member.typeDisplay
+          }
         });
       } else {
         const padding = row.padding;
@@ -615,24 +620,6 @@ function renderLayout(value, options) {
           alignment: layout.alignment
         });
       }
-    }
-  }
-
-  // The field table presents compiler offsets; add an ABI explanation for
-  // slices below it without changing any existing navigable line positions.
-  // The calculation only appears when the field's measured size/alignment
-  // agree with the compiler's { pointer, i32 length } representation.
-  const slices = layout.members
-    .filter(member => member.typeDisplay.endsWith('[]'))
-    .map(member => ({
-      name: member.name,
-      representation: fieldRepresentation(member.typeDisplay, member.size, member.alignment)
-    }));
-  if (slices.length > 0) {
-    lines.push('');
-    lines.push('Fat pointer representations:');
-    for (const slice of slices) {
-      lines.push(`  ${slice.name}: ${slice.representation}`);
     }
   }
 

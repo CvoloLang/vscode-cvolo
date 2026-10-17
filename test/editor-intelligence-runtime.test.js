@@ -564,11 +564,11 @@ test('isInsideAggregateInitializer ignores malformed input instead of throwing',
 });
 
 test('pointer fields expose a truthful representation without guessing ABI component widths', () => {
-  assert.equal(runtime.fieldRepresentation('void*'), 'thin pointer (address)');
-  assert.equal(runtime.fieldRepresentation('int[]'), 'fat pointer (data + 32-bit length; sizes depend on target ABI)');
-  assert.equal(runtime.fieldRepresentation('int[]', 16, 8), 'fat pointer: 16 bytes = data 8 + length 4 + padding 4');
-  assert.equal(runtime.fieldRepresentation('int[]', 8, 4), 'fat pointer: 8 bytes = data 4 + length 4 + padding 0');
-  assert.equal(runtime.fieldRepresentation('int[]', 24, 8), 'fat pointer (data + 32-bit length; sizes depend on target ABI)');
+  assert.equal(runtime.fieldRepresentation('void*'), 'address');
+  assert.equal(runtime.fieldRepresentation('int[]'), 'ptr + len 4 B (target-dependent)');
+  assert.equal(runtime.fieldRepresentation('int[]', 16, 8), 'ptr 8 B + len 4 B + pad 4 B');
+  assert.equal(runtime.fieldRepresentation('int[]', 8, 4), 'ptr 4 B + len 4 B + pad 0 B');
+  assert.equal(runtime.fieldRepresentation('int[]', 24, 8), 'ptr + len 4 B (target-dependent)');
   assert.equal(runtime.fieldRepresentation('int[4]'), null);
   assert.equal(runtime.fieldRepresentation('int'), null);
   const view = runtime.renderLayout(valueLayout({
@@ -591,8 +591,10 @@ test('layout report explains measured fat pointers and keeps field navigation sp
     payloadSize: 24,
     paddingSize: 0
   }));
-  assert.match(view.text, /Fat pointer representations:/);
-  assert.match(view.text, /buffer: fat pointer: 16 bytes = data 8 \+ length 4 \+ padding 4/);
+  assert.doesNotMatch(view.text, /Fat pointer representations:/);
+  assert.doesNotMatch(view.text, /buffer: fat pointer/);
+  const typeCell = view.tokens.find(token => token.kind === 'type' && token.display === 'int[]');
+  assert.deepEqual(typeCell.fieldStorage, { size: 16, alignment: 8, typeDisplay: 'int[]' });
   const lines = view.text.split('\n');
   for (const token of view.tokens) {
     assert.ok(token.line < lines.length);

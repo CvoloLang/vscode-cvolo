@@ -314,7 +314,7 @@ function fieldHover(token, options) {
   ];
   const representation = fieldRepresentation(token.typeDisplay, token.size, token.alignment);
   if (representation) {
-    facts.push(['Representation', representation]);
+    facts.push(['ABI', representation]);
   }
 
   const blocks = [`\`\`\`cvolo\n${token.signature}\n\`\`\``, factsBlock(facts)];
@@ -327,7 +327,20 @@ function fieldHover(token, options) {
 
 function typeHover(token, options) {
   if (!token.facts) {
-    return `\`\`\`cvolo\n${token.display}\n\`\`\``;
+    const typeName = `\`\`\`cvolo\n${token.display}\n\`\`\``;
+    if (!token.fieldStorage) {
+      return typeName;
+    }
+    const storage = token.fieldStorage;
+    const rows = [
+      ['Size', formatByteCount(storage.size, options, true)],
+      ['Align', formatByteCount(storage.alignment, options, true)]
+    ];
+    const abi = fieldRepresentation(storage.typeDisplay, storage.size, storage.alignment);
+    if (abi) {
+      rows.push(['ABI', abi]);
+    }
+    return [typeName, factsBlock(rows)].join('\n\n');
   }
 
   const facts = token.facts;
