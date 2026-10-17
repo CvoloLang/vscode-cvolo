@@ -250,7 +250,10 @@
           "comments": "off",
           "strings": "off"
         },
-        "editor.suggestOnTriggerCharacters": true
+        "editor.suggestOnTriggerCharacters": true,
+        "editor.parameterHints.enabled": true,
+        "editor.autoClosingBrackets": "languageDefined",
+        "editor.autoClosingQuotes": "languageDefined"
       }
     },
     "commands": [

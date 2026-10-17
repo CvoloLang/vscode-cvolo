@@ -75,3 +75,15 @@ test('qualified call highlighting separates member dots from namespace identifie
   assert.deepEqual(matches, ['window', 'System', 'Math', 'Float']);
   assert.ok(matches.every(name => !name.includes('.')));
 });
+
+test('Cvolo keeps automatic parameter hints and language-defined closing pairs enabled', () => {
+  const defaults = pkg.contributes.configurationDefaults['[cvolo]'];
+  const configuration = JSON.parse(fs.readFileSync(path.join(root, 'language-configuration.json'), 'utf8'));
+  assert.equal(defaults['editor.parameterHints.enabled'], true);
+  assert.equal(defaults['editor.autoClosingBrackets'], 'languageDefined');
+  assert.equal(defaults['editor.autoClosingQuotes'], 'languageDefined');
+  for (const [open, close] of [['(', ')'], ['[', ']'], ['{', '}'], ['"', '"']]) {
+    assert.ok(configuration.autoClosingPairs.some(pair => pair.open === open && pair.close === close),
+      `Cvolo must auto-close ${open} with ${close}`);
+  }
+});
