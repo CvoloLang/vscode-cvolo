@@ -235,6 +235,12 @@
       "files.readonlyInclude": {
         "**/.cvolo/build/**": true
       },
+      "editor.semanticTokenColorCustomizations": {
+        "rules": {
+          "function:cvoloExternFunction": "#D7A0FF",
+          "variable:cvoloConstant": "#4FC1FF"
+        }
+      },
       "[cvolo]": {
         "editor.wordBasedSuggestions": "off",
         "editor.suggest.showWords": false,

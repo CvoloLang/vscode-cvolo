@@ -50,3 +50,9 @@ test('word-based suggestions are disabled for Cvolo so only compiler-owned items
   assert.equal(languageDefaults?.['editor.wordBasedSuggestions'], 'off');
   assert.equal(languageDefaults?.['editor.suggest.showWords'], false);
 });
+
+test('custom semantic token modifiers stay legible without selecting the bundled theme', () => {
+  const rules = pkg.contributes.configurationDefaults?.['editor.semanticTokenColorCustomizations']?.rules;
+  assert.equal(rules?.['function:cvoloExternFunction'], '#D7A0FF');
+  assert.equal(rules?.['variable:cvoloConstant'], '#4FC1FF');
+});
