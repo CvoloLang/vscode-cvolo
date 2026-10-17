@@ -579,3 +579,23 @@ test('pointer fields expose a truthful representation without guessing ABI compo
   assert.equal(field.typeDisplay, 'int[]');
   assert.equal(field.size, 16);
 });
+
+test('layout report explains measured fat pointers and keeps field navigation spans stable', () => {
+  const view = runtime.renderLayout(valueLayout({
+    members: [
+      { name: 'buffer', typeDisplay: 'int[]', offset: 0, size: 16, alignment: 8 },
+      { name: 'raw', typeDisplay: 'void*', offset: 16, size: 8, alignment: 8 }
+    ],
+    padding: [],
+    size: 24,
+    payloadSize: 24,
+    paddingSize: 0
+  }));
+  assert.match(view.text, /Fat pointer representations:/);
+  assert.match(view.text, /buffer: fat pointer: 16 bytes = data 8 \+ length 4 \+ padding 4/);
+  const lines = view.text.split('\n');
+  for (const token of view.tokens) {
+    assert.ok(token.line < lines.length);
+    assert.ok(token.end <= lines[token.line].length);
+  }
+});
