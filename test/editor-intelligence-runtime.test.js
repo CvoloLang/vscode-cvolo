@@ -565,7 +565,10 @@ test('isInsideAggregateInitializer ignores malformed input instead of throwing',
 
 test('pointer fields expose a truthful representation without guessing ABI component widths', () => {
   assert.equal(runtime.fieldRepresentation('void*'), 'thin pointer (address)');
-  assert.equal(runtime.fieldRepresentation('int[]'), 'fat pointer (data + length; component sizes not provided)');
+  assert.equal(runtime.fieldRepresentation('int[]'), 'fat pointer (data + 32-bit length; sizes depend on target ABI)');
+  assert.equal(runtime.fieldRepresentation('int[]', 16, 8), 'fat pointer: 16 bytes = data 8 + length 4 + padding 4');
+  assert.equal(runtime.fieldRepresentation('int[]', 8, 4), 'fat pointer: 8 bytes = data 4 + length 4 + padding 0');
+  assert.equal(runtime.fieldRepresentation('int[]', 24, 8), 'fat pointer (data + 32-bit length; sizes depend on target ABI)');
   assert.equal(runtime.fieldRepresentation('int[4]'), null);
   assert.equal(runtime.fieldRepresentation('int'), null);
   const view = runtime.renderLayout(valueLayout({
