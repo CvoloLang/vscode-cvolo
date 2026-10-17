@@ -64,3 +64,14 @@ test('custom semantic token modifiers stay legible without selecting the bundled
   assert.equal(rules?.['function.cvoloExternFunction:cvolo'], '#D7A0FF');
   assert.equal(rules?.['variable.cvoloConstant:cvolo'], '#4FC1FF');
 });
+
+test('qualified call highlighting separates member dots from namespace identifiers', () => {
+  const syntax = JSON.parse(fs.readFileSync(path.join(root, 'syntaxes', 'cvolo.tmLanguage.json'), 'utf8'));
+  const entry = syntax.repository['qualified-function-calls'].patterns[0];
+  assert.equal(entry.name, 'entity.name.namespace.cvolo');
+  const regex = new RegExp(entry.match, 'g');
+  const source = 'window.IsInit() + System.Math.Float.Cos(value)';
+  const matches = [...source.matchAll(regex)].map(match => match[0]);
+  assert.deepEqual(matches, ['window', 'System', 'Math', 'Float']);
+  assert.ok(matches.every(name => !name.includes('.')));
+});
