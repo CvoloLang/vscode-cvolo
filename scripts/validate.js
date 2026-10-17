@@ -213,6 +213,21 @@ if (readonlyInclude?.['**/.cvolo/build/**'] !== true) {
   fail('files.readonlyInclude default must mark **/.cvolo/build/** read-only');
 }
 
+const languageDefaults = pkg.contributes?.configurationDefaults?.['[cvolo]'];
+if (!languageDefaults || typeof languageDefaults !== 'object') {
+  fail('package.json must contribute [cvolo] editor defaults');
+} else {
+  if (languageDefaults['editor.wordBasedSuggestions'] !== 'off') {
+    fail('package.json must turn word-based suggestions off for cvolo so only compiler-owned items appear');
+  }
+  if (languageDefaults['editor.suggest.showWords'] !== false) {
+    fail('package.json must turn editor.suggest.showWords off for cvolo');
+  }
+  if (languageDefaults['editor.semanticHighlighting.enabled'] !== true) {
+    fail('package.json must enable editor.semanticHighlighting.enabled for cvolo: the workbench only applies semantic tokens when that value is a boolean, otherwise it defers to the theme and a theme without semanticHighlighting never paints the Language Server tokens');
+  }
+}
+
 const decorationDefaults = {
   'cvolo.codeLens.references': true,
   'cvolo.codeLens.layout': true,

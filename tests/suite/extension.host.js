@@ -312,4 +312,100 @@ suite('Cvolo extension host contract', () => {
         assert.ok(!labels.includes('if'),
             `statement keywords must not leak into a generic argument (got ${JSON.stringify(labels)})`);
     });
+
+    test('a typed prefix offers only compiler items and never a bare document word', async () => {
+        // Word-based suggestions would inject the raw word (here the lone `i`, which the
+        // fixture comments and code contain) into the completion list. The contributed
+        // [cvolo] defaults must keep the list compiler-owned.
+        const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'type-completion.cvl');
+        const document = await vscode.workspace.openTextDocument(file);
+        await vscode.window.showTextDocument(document);
+        await runningClient();
+        await delay(2000);
+
+        const text = document.getText();
+        const at = text.indexOf('i\n') + 1;
+        const position = document.positionAt(at);
+
+        const list = await vscode.commands.executeCommand(
+            'vscode.executeCompletionItemProvider', document.uri, position);
+        const labels = completionLabels(list);
+        const wordItems = (list.items || [])
+            .filter(item => item.kind === vscode.CompletionItemKind.Text)
+            .map(item => (typeof item.label === 'string' ? item.label : item.label.label));
+        assert.deepEqual(wordItems, [],
+            `word-based suggestions must never reach the suggestion list (got ${JSON.stringify(wordItems)})`);
+        assert.ok(!labels.includes('i'),
+            `a bare 'i' item must never be offered (got ${JSON.stringify(labels)})`);
+        assert.ok(labels.includes('int') && labels.includes('if'),
+            `compiler items must still be offered (got ${JSON.stringify(labels)})`);
+    });
+
+    test('the effective Cvolo editor defaults keep completion and semantic tokens enabled', async () => {
+        const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'type-completion.cvl');
+        const document = await vscode.workspace.openTextDocument(file);
+        const editor = vscode.workspace.getConfiguration('editor', { languageId: 'cvolo', uri: document.uri });
+        assert.equal(editor.get('wordBasedSuggestions'), 'off',
+            'word-based suggestions must be off for cvolo documents');
+        assert.equal(editor.get('suggest')?.showWords, false,
+            'word items must be hidden for cvolo documents');
+        assert.equal(editor.get('semanticHighlighting')?.enabled, true,
+            'semantic highlighting must not defer to the active theme for cvolo documents');
+        const rules = editor.get('semanticTokenColorCustomizations')?.rules || {};
+        assert.equal(rules['function:cvoloExternFunction'], '#D7A0FF',
+            'imported extern functions must resolve to the light-violet accent without the bundled theme');
+        assert.equal(rules['variable:cvoloConstant'], '#4FC1FF',
+            'compiler-proven constants must resolve to the constant accent without the bundled theme');
+    });
+
+    test('the running server marks imported extern functions and their calls', async () => {
+        // End-to-end guard for the extern presentation: the legend the real client received
+        // must carry the compiler modifier, and the tokens the real server returns for a
+        // standalone variadic extern declaration and its call sites must set that modifier
+        // (the declaration also carries `declaration`; an ordinary function carries neither).
+        const client = await runningClient();
+        const legend = client.initializeResult.capabilities.semanticTokensProvider.legend;
+        const externBit = legend.tokenModifiers.indexOf('cvoloExternFunction');
+        assert.ok(externBit >= 0,
+            `the negotiated legend must carry cvoloExternFunction (got ${JSON.stringify(legend.tokenModifiers)})`);
+
+        const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'extern-colour.cvl');
+        const document = await vscode.workspace.openTextDocument(file);
+        await vscode.window.showTextDocument(document);
+        await delay(2000);
+
+        const result = await client.sendRequest('textDocument/semanticTokens/full', {
+            textDocument: { uri: document.uri.toString() }
+        });
+        const text = document.getText();
+        const decoded = [];
+        let line = 0;
+        let start = 0;
+        const raw = (result && result.data) || [];
+        for (let index = 0; index + 4 < raw.length; index += 5) {
+            line += raw[index];
+            start = raw[index] === 0 ? start + raw[index + 1] : raw[index + 1];
+            const range = new vscode.Range(line, start, line, start + raw[index + 2]);
+            decoded.push({
+                text: text.slice(document.offsetAt(range.start), document.offsetAt(range.end)),
+                modifiers: raw[index + 4],
+                declaration: (raw[index + 4] & (1 << legend.tokenModifiers.indexOf('declaration'))) !== 0
+            });
+        }
+
+        const externMask = 1 << externBit;
+        const printf = decoded.filter(entry => entry.text === 'printf');
+        const getchar = decoded.filter(entry => entry.text === 'getchar');
+        assert.equal(printf.length, 2, `printf must be classified at its declaration and call (got ${JSON.stringify(decoded)})`);
+        assert.equal(getchar.length, 2, `getchar must be classified at its declaration and call (got ${JSON.stringify(decoded)})`);
+        assert.ok(printf.every(entry => (entry.modifiers & externMask) !== 0),
+            `both printf sites must carry cvoloExternFunction (got ${JSON.stringify(printf)})`);
+        assert.ok(getchar.every(entry => (entry.modifiers & externMask) !== 0),
+            `both getchar sites must carry cvoloExternFunction (got ${JSON.stringify(getchar)})`);
+        assert.ok(printf.some(entry => entry.declaration) && getchar.some(entry => entry.declaration),
+            'the extern declarations must still be marked as declarations');
+        const main = decoded.filter(entry => entry.text === 'main');
+        assert.ok(main.length > 0 && main.every(entry => (entry.modifiers & externMask) === 0),
+            `an ordinary function must never carry the extern modifier (got ${JSON.stringify(main)})`);
+    });
 });

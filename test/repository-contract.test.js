@@ -51,6 +51,14 @@ test('word-based suggestions are disabled for Cvolo so only compiler-owned items
   assert.equal(languageDefaults?.['editor.suggest.showWords'], false);
 });
 
+test('semantic tokens are applied for Cvolo without selecting the bundled theme', () => {
+  // The workbench only applies a document semantic tokens provider when
+  // editor.semanticHighlighting.enabled is a boolean; "configuredByTheme" defers to the
+  // active theme, and a theme without "semanticHighlighting": true paints nothing.
+  const languageDefaults = pkg.contributes.configurationDefaults?.['[cvolo]'];
+  assert.equal(languageDefaults?.['editor.semanticHighlighting.enabled'], true);
+});
+
 test('custom semantic token modifiers stay legible without selecting the bundled theme', () => {
   const rules = pkg.contributes.configurationDefaults?.['editor.semanticTokenColorCustomizations']?.rules;
   assert.equal(rules?.['function:cvoloExternFunction'], '#D7A0FF');

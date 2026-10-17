@@ -1,0 +1,12 @@
+// Minimal fixture for imported extern function presentation in the extension host.
+// The language server must classify a standalone variadic extern declaration and its
+// call sites as imported extern functions so the host paints them apart from ordinary
+// Cvolo functions through the contributed theme and setting rules.
+extern void printf(string format, ...);
+extern int getchar();
+
+int main()
+{
+    printf("cvolo");
+    return getchar();
+}

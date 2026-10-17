@@ -242,6 +242,7 @@
         }
       },
       "[cvolo]": {
+        "editor.semanticHighlighting.enabled": true,
         "editor.wordBasedSuggestions": "off",
         "editor.suggest.showWords": false,
         "editor.quickSuggestions": {
