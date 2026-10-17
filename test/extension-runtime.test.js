@@ -12,7 +12,10 @@ const {
   formatBundleProvenance,
   readBundleManifest,
   resolveServerCommand,
-  supportsDiagnosticLogDirectory
+  supportsDiagnosticLogDirectory,
+  supportsContinuousLog,
+  debugLogPath,
+  pruneDebugLogs
 } = require('../extension-runtime');
 
 function fakeFs(entries = {}) {
@@ -490,4 +493,11 @@ test('supportsDiagnosticLogDirectory is false for an older server and never thro
   assert.equal(supportsDiagnosticLogDirectory('missing.exe', { spawnSyncApi: throwingSpawn, cache: new Map() }), false);
 
   assert.equal(supportsDiagnosticLogDirectory('', { spawnSyncApi: olderServer, cache: new Map() }), false);
+});
+
+test('continuous log uses server capability detection and a private filename', () => {
+  const fake = () => ({ stdout: 'Options:\n  --stdio\n  --log <path>\n  --verbose\n' });
+  assert.equal(supportsContinuousLog('server.exe', { spawnSyncApi: fake }), true);
+  assert.equal(supportsContinuousLog('old.exe', { spawnSyncApi: () => ({stdout:'--stdio'}) }), false);
+  assert.match(debugLogPath('/logs', new Date('2026-10-17T12:34:56Z'), 42), /cvolo-debug-2026-10-17T12-34-56-000Z-42\.log$/);
 });

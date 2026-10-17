@@ -228,6 +228,17 @@
           "default": true,
           "scope": "window",
           "description": "Keep the type layout view up to date while you edit the source of the type it shows."
+        },
+        "cvolo.debug.logging": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "default": "auto",
+          "scope": "window",
+          "description": "Save continuous server diagnostic logs in extension storage. Auto enables it for Extension Development Host; on forces it for normal use. Raw JSON-RPC tracing remains disabled."
         }
       }
     },

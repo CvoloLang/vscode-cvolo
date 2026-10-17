@@ -42,6 +42,30 @@ function supportsDiagnosticLogDirectory(command, { spawnSyncApi = spawnSync, cac
   return supported;
 }
 
+function supportsContinuousLog(command, { spawnSyncApi = spawnSync, cache = new Map() } = {}) {
+  const key = String(command ?? '');
+  if (!key) return false;
+  if (cache.has(key)) return cache.get(key);
+  let supported = false;
+  try {
+    const result = spawnSyncApi(key, ['--help'], { encoding: 'utf8', timeout: 10000, windowsHide: true });
+    supported = /(?:^|\s)--log(?:\s|$)/m.test(String(result?.stdout ?? '') + '\n' + String(result?.stderr ?? ''));
+  } catch { /* older servers must not stop extension activation */ }
+  cache.set(key, supported);
+  return supported;
+}
+function debugLogPath(directory, now = new Date(), nonce = process.pid) {
+  return path.join(directory, 'cvolo-debug-' + now.toISOString().replace(/[:.]/g, '-') + '-' + nonce + '.log');
+}
+function pruneDebugLogs(directory, fsApi = fs, retention = 5) {
+  try {
+    const files = fsApi.readdirSync(directory).filter(name => /^cvolo-debug-.*\.log$/.test(name));
+    const ranked = files.map(name => ({ name, modified: fsApi.statSync(path.join(directory, name)).mtimeMs }))
+      .sort((a, b) => b.modified - a.modified);
+    for (const old of ranked.slice(retention)) fsApi.unlinkSync(path.join(directory, old.name));
+  } catch { /* best-effort cleanup only */ }
+}
+
 function currentRid(platform = process.platform, arch = process.arch) {
   return ridFor(platform, arch);
 }
@@ -295,5 +319,8 @@ module.exports = {
   formatBundleProvenance,
   readBundleManifest,
   resolveServerCommand,
-  supportsDiagnosticLogDirectory
+  supportsDiagnosticLogDirectory,
+  supportsContinuousLog,
+  debugLogPath,
+  pruneDebugLogs
 };

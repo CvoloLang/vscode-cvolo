@@ -4,7 +4,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
-const { LifecycleController, currentRid, formatBundleProvenance, readBundleManifest, resolveServerCommand, supportsDiagnosticLogDirectory } = require('./extension-runtime');
+const { LifecycleController, currentRid, formatBundleProvenance, readBundleManifest, resolveServerCommand, supportsDiagnosticLogDirectory, supportsContinuousLog, debugLogPath, pruneDebugLogs } = require('./extension-runtime');
 const { registerCvoloBraceColorizer } = require('./brace-colorizer');
 const { registerCvoloSyntaxColorizer } = require('./syntax-colorizer');
 const { registerEditorIntelligence } = require('./editor-intelligence');
@@ -158,6 +158,24 @@ async function createAndStartClient(context) {
   }
 
   const serverArguments = ['--stdio'];
+  const debugMode = vscode.workspace.getConfiguration('cvolo').get('debug.logging', 'auto');
+  const debugEnabled = debugMode === 'on' || (debugMode === 'auto' && context.extensionMode === vscode.ExtensionMode.Development);
+  if (debugEnabled) {
+    const directory = diagnosticLogDirectory(context);
+    if (supportsContinuousLog(resolved.command)) {
+      try {
+        fs.mkdirSync(directory, { recursive: true });
+        pruneDebugLogs(directory);
+        const logFile = debugLogPath(directory);
+        serverArguments.push('--log', logFile);
+        outputChannel.appendLine('[client] debug log: ' + logFile + ' (no raw JSON-RPC frames)');
+      } catch (error) {
+        outputChannel.appendLine('[client] unable to create debug log directory: ' + formatError(error));
+      }
+    } else {
+      outputChannel.appendLine('[client] selected server does not support --log; debug logging unavailable.');
+    }
+  }
   const diagnosticDirectory = diagnosticLogDirectory(context);
   if (supportsDiagnosticLogDirectory(resolved.command)) {
     serverArguments.push('--diagnostic-log-dir', diagnosticDirectory);
@@ -289,13 +307,14 @@ async function activate(context) {
     vscode.workspace.onDidChangeConfiguration(event => {
       const serverPathChanged = event.affectsConfiguration('cvolo.server.path');
       const libraryPathsChanged = event.affectsConfiguration('cvolo.libraryPaths');
-      if (!serverPathChanged && !libraryPathsChanged) {
+      const debugModeChanged = event.affectsConfiguration('cvolo.debug.logging');
+      if (!serverPathChanged && !libraryPathsChanged && !debugModeChanged) {
         return;
       }
 
       requestRestart(libraryPathsChanged
         ? 'cvolo.libraryPaths changed'
-        : 'cvolo.server.path changed');
+        : debugModeChanged ? 'cvolo.debug.logging changed' : 'cvolo.server.path changed');
     })
   );
 
