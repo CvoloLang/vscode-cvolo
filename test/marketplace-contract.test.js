@@ -34,22 +34,34 @@ test('the theme enables semantic highlighting for the language-server token type
 
 test('the theme distinguishes compiler-proven constants from ordinary variables', () => {
   const colours = theme.semanticTokenColors;
-  assert.ok(Object.prototype.hasOwnProperty.call(colours, 'variable:readonly:static'),
-    'the theme must colour immutable globals (variable:readonly:static) as constants for standards-only clients');
-  assert.ok(Object.prototype.hasOwnProperty.call(colours, 'variable:cvoloConstant'),
-    'the theme must colour the negotiated cvoloConstant modifier where a client advertises it');
+  assert.equal(colours['variable.readonly.static:cvolo'], '#4FC1FF',
+    'immutable globals must use the VS Code type.modifier:language selector');
+  assert.equal(colours['variable.cvoloConstant:cvolo'], '#4FC1FF',
+    'the negotiated cvoloConstant modifier must use the type.modifier:language selector');
+  assert.equal(colours.variable, '#9CDCFE',
+    'ordinary variables must keep their separate foreground');
+  assert.equal(colours['variable:readonly:static'], undefined,
+    'do not reintroduce the invalid colon-separated modifier selector');
+  assert.equal(colours['variable:cvoloConstant'], undefined,
+    'a modifier must not be mistaken for a language id');
 });
 
 test('the theme colours imported extern functions without recolouring the extern keyword', () => {
   const colours = theme.semanticTokenColors;
-  assert.ok(Object.prototype.hasOwnProperty.call(colours, 'function:cvoloExternFunction'),
-    'the theme must colour the negotiated cvoloExternFunction modifier where a client advertises it');
-  assert.equal(colours['function:cvoloExternFunction'], '#D7A0FF',
-    'imported extern functions must render in the light-violet accent');
+  assert.equal(colours['function.cvoloExternFunction:cvolo'], '#D7A0FF',
+    'imported extern functions must use the VS Code type.modifier:language selector');
+  assert.equal(colours['function:cvoloExternFunction'], undefined,
+    'the old selector interpreted the modifier as a language id');
   assert.equal(colours.function, '#DCDCAA',
     'ordinary functions must keep the yellow accent');
   assert.equal(colours.keyword, '#569CD6',
     'the extern keyword must keep its ordinary blue keyword colour');
+
+  const defaults = pkg.contributes.configurationDefaults['editor.semanticTokenColorCustomizations'];
+  assert.equal(defaults.rules['function.cvoloExternFunction:cvolo'], '#D7A0FF',
+    'the language-specific editor default and the bundled theme must agree');
+  assert.equal(defaults.rules['variable.cvoloConstant:cvolo'], '#4FC1FF',
+    'the constant modifier must have a working editor default without the bundled theme');
 });
 
 test('the theme keeps TextMate lexical colours as a grammar-based fallback', () => {
