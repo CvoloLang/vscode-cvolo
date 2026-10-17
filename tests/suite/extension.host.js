@@ -352,9 +352,9 @@ suite('Cvolo extension host contract', () => {
         assert.equal(editor.get('semanticHighlighting')?.enabled, true,
             'semantic highlighting must not defer to the active theme for cvolo documents');
         const rules = editor.get('semanticTokenColorCustomizations')?.rules || {};
-        assert.equal(rules['function:cvoloExternFunction'], '#D7A0FF',
+        assert.equal(rules['function.cvoloExternFunction:cvolo'], '#D7A0FF',
             'imported extern functions must resolve to the light-violet accent without the bundled theme');
-        assert.equal(rules['variable:cvoloConstant'], '#4FC1FF',
+        assert.equal(rules['variable.cvoloConstant:cvolo'], '#4FC1FF',
             'compiler-proven constants must resolve to the constant accent without the bundled theme');
     });
 
@@ -388,6 +388,7 @@ suite('Cvolo extension host contract', () => {
             const range = new vscode.Range(line, start, line, start + raw[index + 2]);
             decoded.push({
                 text: text.slice(document.offsetAt(range.start), document.offsetAt(range.end)),
+                type: legend.tokenTypes[raw[index + 3]],
                 modifiers: raw[index + 4],
                 declaration: (raw[index + 4] & (1 << legend.tokenModifiers.indexOf('declaration'))) !== 0
             });
@@ -398,6 +399,8 @@ suite('Cvolo extension host contract', () => {
         const getchar = decoded.filter(entry => entry.text === 'getchar');
         assert.equal(printf.length, 2, `printf must be classified at its declaration and call (got ${JSON.stringify(decoded)})`);
         assert.equal(getchar.length, 2, `getchar must be classified at its declaration and call (got ${JSON.stringify(decoded)})`);
+        assert.ok(printf.every(entry => entry.type === 'function') && getchar.every(entry => entry.type === 'function'),
+            `extern semantic tokens must be functions (got ${JSON.stringify({printf, getchar})})`);
         assert.ok(printf.every(entry => (entry.modifiers & externMask) !== 0),
             `both printf sites must carry cvoloExternFunction (got ${JSON.stringify(printf)})`);
         assert.ok(getchar.every(entry => (entry.modifiers & externMask) !== 0),

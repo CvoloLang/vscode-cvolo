@@ -627,6 +627,28 @@ for (const tokenType of ['namespace', 'typeParameter', 'parameter', 'variable', 
   }
 }
 
+// A VS Code semantic token selector uses tokenType.modifier:language.
+const requiredSemanticSelectors = {
+  'function.cvoloExternFunction:cvolo': '#D7A0FF',
+  'variable.cvoloConstant:cvolo': '#4FC1FF'
+};
+const defaultRules = pkg.contributes?.configurationDefaults?.['editor.semanticTokenColorCustomizations']?.rules ?? {};
+for (const [selector, colour] of Object.entries(requiredSemanticSelectors)) {
+  if (defaultRules[selector] !== colour || theme.semanticTokenColors?.[selector] !== colour) {
+    fail(`semantic token selector ${selector} must use ${colour} in defaults and theme`);
+  }
+}
+if (theme.semanticTokenColors?.['variable.readonly.static:cvolo'] !== '#4FC1FF') {
+  fail('readonly static variables must use a valid semantic-token selector');
+}
+for (const rules of [defaultRules, theme.semanticTokenColors ?? {}]) {
+  for (const selector of Object.keys(rules)) {
+    if (/^(function:cvoloExternFunction|variable:cvoloConstant|variable:readonly:static)$/.test(selector)) {
+      fail(`invalid semantic modifier selector ${selector}`);
+    }
+  }
+}
+
 // The extension ships an XML-based cvolo-project language (.cvlproj), so the theme
 // must colour the XML scopes that grammar emits. Without tag/attribute rules the
 // project manifest falls through to the plain editor foreground and looks unhighlighted.

@@ -237,8 +237,8 @@
       },
       "editor.semanticTokenColorCustomizations": {
         "rules": {
-          "function:cvoloExternFunction": "#D7A0FF",
-          "variable:cvoloConstant": "#4FC1FF"
+          "function.cvoloExternFunction:cvolo": "#D7A0FF",
+          "variable.cvoloConstant:cvolo": "#4FC1FF"
         }
       },
       "[cvolo]": {

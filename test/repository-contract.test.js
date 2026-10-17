@@ -61,6 +61,6 @@ test('semantic tokens are applied for Cvolo without selecting the bundled theme'
 
 test('custom semantic token modifiers stay legible without selecting the bundled theme', () => {
   const rules = pkg.contributes.configurationDefaults?.['editor.semanticTokenColorCustomizations']?.rules;
-  assert.equal(rules?.['function:cvoloExternFunction'], '#D7A0FF');
-  assert.equal(rules?.['variable:cvoloConstant'], '#4FC1FF');
+  assert.equal(rules?.['function.cvoloExternFunction:cvolo'], '#D7A0FF');
+  assert.equal(rules?.['variable.cvoloConstant:cvolo'], '#4FC1FF');
 });
