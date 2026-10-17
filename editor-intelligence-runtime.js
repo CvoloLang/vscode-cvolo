@@ -618,6 +618,24 @@ function renderLayout(value, options) {
     }
   }
 
+  // The field table presents compiler offsets; add an ABI explanation for
+  // slices below it without changing any existing navigable line positions.
+  // The calculation only appears when the field's measured size/alignment
+  // agree with the compiler's { pointer, i32 length } representation.
+  const slices = layout.members
+    .filter(member => member.typeDisplay.endsWith('[]'))
+    .map(member => ({
+      name: member.name,
+      representation: fieldRepresentation(member.typeDisplay, member.size, member.alignment)
+    }));
+  if (slices.length > 0) {
+    lines.push('');
+    lines.push('Fat pointer representations:');
+    for (const slice of slices) {
+      lines.push(`  ${slice.name}: ${slice.representation}`);
+    }
+  }
+
   return { text: lines.join('\n') + '\n', tokens };
 }
 
