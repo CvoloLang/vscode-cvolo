@@ -95,6 +95,23 @@ function count(value) {
 // would read as one longer hex number; it is zero padded to two digits so a small layout keeps a
 // stable column width and a larger one simply grows. The combined form puts the decimal value first,
 // so neither notation can be mistaken for part of the other.
+// Explain pointer-shaped values without inventing ABI facts. The compiler provides
+// byte size and alignment but does not currently expose the data/length/padding
+// decomposition of a fat pointer. Never derive internal widths from total size.
+function fieldRepresentation(typeDisplay) {
+  if (typeof typeDisplay !== 'string') {
+    return null;
+  }
+  const name = typeDisplay.trim();
+  if (name.endsWith('[]')) {
+    return 'fat pointer (data + length; component sizes not provided)';
+  }
+  if (name.endsWith('*')) {
+    return 'thin pointer (address)';
+  }
+  return null;
+}
+
 function formatByteCount(value, options, withUnit = false) {
   const view = layoutOptions(options);
   const decimal = String(value);
@@ -547,6 +564,7 @@ function renderLayout(value, options) {
           start: fieldColumn,
           end: fieldColumn + member.name.length,
           name: member.name,
+          typeDisplay: member.typeDisplay,
           signature: navigation?.signature ?? `${member.typeDisplay} ${layout.typeDisplay}.${member.name}`,
           documentation: navigation?.documentation ?? null,
           offset: member.offset,
@@ -685,6 +703,7 @@ module.exports = {
   VALIDATE_ANCHORED_ACTION_REQUEST,
   anchoredLensRequest,
   formatByteCount,
+  fieldRepresentation,
   formatTypeLayout,
   isInsideAggregateInitializer,
   layoutDocumentDescriptor,

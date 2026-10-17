@@ -17,6 +17,7 @@ const {
   VALIDATE_ANCHORED_ACTION_REQUEST,
   anchoredLensRequest,
   formatByteCount,
+  fieldRepresentation,
   isInsideAggregateInitializer,
   layoutDocumentDescriptor,
   normalizeAnchoredResult,
@@ -301,7 +302,7 @@ function toLocation(target) {
 
 function factsBlock(facts) {
   const width = facts.reduce((longest, [label]) => Math.max(longest, label.length + 1), 0);
-  const body = facts.map(([label, text]) => `${label}:`.padEnd(width) + text).join('\n');
+  const body = facts.map(([label, text]) => `${label}:`.padEnd(width) + '  ' + text).join('\n');
   return ['```text', body, '```'].join('\n');
 }
 
@@ -311,6 +312,10 @@ function fieldHover(token, options) {
     ['Size', formatByteCount(token.size, options, true)],
     ['Alignment', formatByteCount(token.alignment, options, true)]
   ];
+  const representation = fieldRepresentation(token.typeDisplay);
+  if (representation) {
+    facts.push(['Representation', representation]);
+  }
 
   const blocks = [`\`\`\`cvolo\n${token.signature}\n\`\`\``, factsBlock(facts)];
   if (token.documentation) {

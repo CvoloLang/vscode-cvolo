@@ -562,3 +562,17 @@ test('isInsideAggregateInitializer ignores malformed input instead of throwing',
   assert.equal(runtime.isInsideAggregateInitializer('abc', 1.5), false);
   assert.equal(runtime.isInsideAggregateInitializer('', 0), false);
 });
+
+test('pointer fields expose a truthful representation without guessing ABI component widths', () => {
+  assert.equal(runtime.fieldRepresentation('void*'), 'thin pointer (address)');
+  assert.equal(runtime.fieldRepresentation('int[]'), 'fat pointer (data + length; component sizes not provided)');
+  assert.equal(runtime.fieldRepresentation('int[4]'), null);
+  assert.equal(runtime.fieldRepresentation('int'), null);
+  const view = runtime.renderLayout(valueLayout({
+    members: [{ name: 'items', typeDisplay: 'int[]', offset: 0, size: 16, alignment: 8 }],
+    padding: []
+  }));
+  const field = view.tokens.find(token => token.kind === 'field');
+  assert.equal(field.typeDisplay, 'int[]');
+  assert.equal(field.size, 16);
+});
