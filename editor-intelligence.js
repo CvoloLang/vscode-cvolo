@@ -312,7 +312,7 @@ function fieldHover(token, options) {
     ['Size', formatByteCount(token.size, options, true)],
     ['Alignment', formatByteCount(token.alignment, options, true)]
   ];
-  const representation = fieldRepresentation(token.typeDisplay);
+  const representation = fieldRepresentation(token.typeDisplay, token.size, token.alignment);
   if (representation) {
     facts.push(['Representation', representation]);
   }
