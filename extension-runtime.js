@@ -66,6 +66,22 @@ function pruneDebugLogs(directory, fsApi = fs, retention = 5) {
   } catch { /* best-effort cleanup only */ }
 }
 
+// Tab inserts the compiler's call snippet but does not type a literal '('.
+// CompletionItem.command fires after insertion; request parameter hints then.
+function attachSignatureHelpAfterCallCompletion(result, callableKinds) {
+  const items = Array.isArray(result) ? result : result?.items;
+  if (!Array.isArray(items)) return result;
+  for (const item of items) {
+    if (!item || item.command || !callableKinds.has(item.kind)) continue;
+    const inserted = typeof item.insertText === 'string'
+      ? item.insertText : item.insertText?.value ?? item.textEdit?.newText;
+    const label = typeof item.label === 'string' ? item.label : item.label?.label;
+    if (typeof inserted !== 'string' || !inserted.includes('(') || label?.startsWith('~')) continue;
+    item.command = { command: 'editor.action.triggerParameterHints', title: 'Show function parameters' };
+  }
+  return result;
+}
+
 function currentRid(platform = process.platform, arch = process.arch) {
   return ridFor(platform, arch);
 }
@@ -322,5 +338,6 @@ module.exports = {
   supportsDiagnosticLogDirectory,
   supportsContinuousLog,
   debugLogPath,
-  pruneDebugLogs
+  pruneDebugLogs,
+  attachSignatureHelpAfterCallCompletion
 };

@@ -4,7 +4,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
-const { LifecycleController, currentRid, formatBundleProvenance, readBundleManifest, resolveServerCommand, supportsDiagnosticLogDirectory, supportsContinuousLog, debugLogPath, pruneDebugLogs } = require('./extension-runtime');
+const { LifecycleController, currentRid, formatBundleProvenance, readBundleManifest, resolveServerCommand, supportsDiagnosticLogDirectory, supportsContinuousLog, debugLogPath, pruneDebugLogs, attachSignatureHelpAfterCallCompletion } = require('./extension-runtime');
 const { registerCvoloBraceColorizer } = require('./brace-colorizer');
 const { registerCvoloSyntaxColorizer } = require('./syntax-colorizer');
 const { registerEditorIntelligence } = require('./editor-intelligence');
@@ -200,6 +200,22 @@ async function createAndStartClient(context) {
     outputChannel,
     revealOutputChannelOn: RevealOutputChannelOn.Error,
     middleware: {
+      async provideCompletionItem(document, position, completionContext, token, next) {
+        const result = await next(document, position, completionContext, token);
+        if (!result || token.isCancellationRequested) return result;
+        const callableKinds = new Set([
+          vscode.CompletionItemKind.Function,
+          vscode.CompletionItemKind.Method,
+          vscode.CompletionItemKind.Constructor
+        ]);
+        const decorated = attachSignatureHelpAfterCallCompletion(result, callableKinds);
+        if (debugEnabled) {
+          const items = Array.isArray(decorated) ? decorated : decorated.items;
+          const count = items.filter(item => item.command?.command === 'editor.action.triggerParameterHints').length;
+          outputChannel.appendLine('[client][completion] parameter-hint triggers=' + count + ' version=' + document.version);
+        }
+        return decorated;
+      },
       async provideSignatureHelp(document, position, triggerContext, token, next) {
         // Observe the VS Code <-> languageclient boundary. The compiler log
         // reports its own response, but not whether the client received and

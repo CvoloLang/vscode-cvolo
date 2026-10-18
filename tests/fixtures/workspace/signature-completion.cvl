@@ -1,0 +1,6 @@
+// Tab-accepting Beg inserts a callable snippet and should trigger parameter hints.
+void Begin(int mode) {}
+int Main() {
+    Beg
+    return 0;
+}

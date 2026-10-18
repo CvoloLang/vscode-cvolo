@@ -15,7 +15,8 @@ const {
   supportsDiagnosticLogDirectory,
   supportsContinuousLog,
   debugLogPath,
-  pruneDebugLogs
+  pruneDebugLogs,
+  attachSignatureHelpAfterCallCompletion
 } = require('../extension-runtime');
 
 function fakeFs(entries = {}) {
@@ -500,4 +501,24 @@ test('continuous log uses server capability detection and a private filename', (
   assert.equal(supportsContinuousLog('server.exe', { spawnSyncApi: fake }), true);
   assert.equal(supportsContinuousLog('old.exe', { spawnSyncApi: () => ({stdout:'--stdio'}) }), false);
   assert.match(debugLogPath('/logs', new Date('2026-10-17T12:34:56Z'), 42), /cvolo-debug-2026-10-17T12-34-56-000Z-42\.log$/);
+});
+
+test('only call-snippet completions launch parameter hints after Tab', () => {
+  const kinds = new Set([1, 2, 3]); // VS Code: method, function, constructor.
+  const items = [
+    { label: 'Begin', kind: 2, insertText: { value: 'Begin(${1:mode})' } },
+    { label: 'Clear', kind: 2, insertText: 'Clear()' },
+    { label: 'Window', kind: 3, insertText: { value: 'Window(${1:params})' } },
+    { label: 'int', kind: 13, insertText: 'int' },
+    { label: 'Begin', kind: 2, insertText: 'Begin' },
+    { label: '~Window()', kind: 1, insertText: '~Window() { ${0} }' },
+    { label: 'OwnCommand', kind: 1, insertText: 'OwnCommand()', command: { command: 'other.action' } }
+  ];
+  const list = { items, isIncomplete: false };
+  assert.equal(attachSignatureHelpAfterCallCompletion(list, kinds), list);
+  for (let i = 0; i < 3; i++) assert.equal(items[i].command?.command, 'editor.action.triggerParameterHints');
+  for (let i = 3; i < 6; i++) assert.equal(items[i].command, undefined);
+  assert.equal(items[6].command.command, 'other.action');
+  assert.equal(attachSignatureHelpAfterCallCompletion(null, kinds), null);
+  assert.deepEqual(attachSignatureHelpAfterCallCompletion([], kinds), []);
 });

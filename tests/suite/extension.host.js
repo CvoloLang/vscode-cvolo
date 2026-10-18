@@ -341,6 +341,28 @@ suite('Cvolo extension host contract', () => {
             `compiler items must still be offered (got ${JSON.stringify(labels)})`);
     });
 
+    test('callable completion asks VS Code to show parameters after Tab acceptance', async () => {
+        const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'signature-completion.cvl');
+        const document = await vscode.workspace.openTextDocument(file);
+        await vscode.window.showTextDocument(document);
+        await runningClient();
+        await delay(750);
+        const source = document.getText();
+        const marker = '    Beg';
+        const at = source.indexOf(marker);
+        assert.ok(at >= 0, 'fixture must contain an incomplete function name');
+        const position = document.positionAt(at + marker.length);
+        const list = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', document.uri, position);
+        const begin = (list?.items || []).find(item =>
+            (typeof item.label === 'string' ? item.label : item.label.label) === 'Begin'
+            && item.kind === vscode.CompletionItemKind.Function);
+        assert.ok(begin, 'compiler must offer Begin as a function');
+        assert.equal(begin.command?.command, 'editor.action.triggerParameterHints',
+            'Tab must request parameter hints after the snippet is inserted');
+        const insertion = typeof begin.insertText === 'string' ? begin.insertText : begin.insertText?.value;
+        assert.ok(insertion?.includes('Begin('), 'completion must insert a call, not just the name');
+    });
+
     test('signature help reaches VS Code for calls with missing arguments', async () => {
         const client = await runningClient();
         const triggers = client.initializeResult.capabilities.signatureHelpProvider?.triggerCharacters || [];
