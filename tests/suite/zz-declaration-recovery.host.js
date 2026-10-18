@@ -1,0 +1,310 @@
+'use strict';
+
+// End-to-end matrix: real VS Code documents, LanguageClient, LSP diagnostics and tokens.
+// The Tooling matrix alone cannot exercise this path.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vscode = require('vscode');
+
+const EXTENSION_ID = 'cvololang.cvolo-language';
+const fixtures = path.resolve(__dirname, '..', 'fixtures', 'workspace');
+const header = [
+    'public struct Widget { public int Value; }',
+    'public struct Box<T> { public T Value; }',
+    'int GetValue() { return 2; }',
+    'void Touch() { }'
+].join('\n') + '\n';
+const followIf = 'if (ready) { y = y + 1; }';
+const prefix = [
+    'bool ready = true;',
+    'int y = 1;',
+    'double reused = 0;',
+    'Widget widget = Widget { Value: 1 };'
+].join('\n') + '\n';
+
+function makeSource(before, next, context = 'function', separator = '\n', newline = '\n') {
+    const body = prefix + before + separator + next + '\n'
+        + 'int afterProbe = 7;\nreturn afterProbe;\n';
+    let source;
+    switch (context) {
+        case 'function':
+            source = header + 'int main() {\n' + body + '}\n';
+            break;
+        case 'namespace':
+            source = 'namespace RecoveryE2E {\n' + header + 'int main() {\n' + body + '}\n}\n';
+            break;
+        case 'extension':
+            source = header + 'public extension Widget {\npublic int Recover() {\n' + body
+                + '}\n}\nint main() { return 0; }\n';
+            break;
+        case 'inner_if':
+            source = header + 'int main() {\nif (true) {\n' + body + '}\nreturn 0;\n}\n';
+            break;
+        case 'inner_while':
+            source = header + 'int main() {\nwhile (false) {\n' + body + '}\nreturn 0;\n}\n';
+            break;
+        case 'inner_for':
+            source = header + 'int main() {\nfor (int i = 0; i < 1; i = i + 1) {\n' + body
+                + '}\nreturn 0;\n}\n';
+            break;
+        case 'inner_block':
+            source = header + 'int main() {\n{\n' + body + '}\nreturn 0;\n}\n';
+            break;
+        default:
+            throw new Error('Unknown scope: ' + context);
+    }
+    return newline === '\n' ? source : source.replace(/\n/g, newline);
+}
+
+function diagnosticCode(diagnostic) {
+    const code = diagnostic.code;
+    return String(typeof code === 'object' && code !== null ? code.value : code ?? '');
+}
+
+function isSyntaxDiagnostic(diagnostic) {
+    return /^CVL417[345]$|^CVL0000$/.test(diagnosticCode(diagnostic))
+        || /no viable alternative|missing ';'|unexpected token|extraneous input/i.test(diagnostic.message);
+}
+
+function describe(diagnostics) {
+    return diagnostics.map(diagnostic =>
+        diagnosticCode(diagnostic) + '@'
+        + (diagnostic.range.start.line + 1) + ':' + (diagnostic.range.start.character + 1)
+        + ' ' + diagnostic.message
+    ).join('\n');
+}
+
+async function runningClient() {
+    const extension = vscode.extensions.getExtension(EXTENSION_ID);
+    assert.ok(extension, 'Missing extension ' + EXTENSION_ID);
+    const api = await extension.activate();
+    const deadline = Date.now() + 45000;
+    while (Date.now() < deadline) {
+        const client = api.getClient();
+        if (client?.isRunning()) return client;
+        await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    throw new Error('Cvolo Language Server did not start');
+}
+
+async function openAndAwaitDiagnostics(uri) {
+    // Subscribe before didOpen: valid programs are expected to publish [].
+    let subscription;
+    let timeout;
+    const published = new Promise((resolve, reject) => {
+        subscription = vscode.languages.onDidChangeDiagnostics(event => {
+            if (event.uris.some(changed => changed.toString() === uri.toString())) resolve();
+        });
+        timeout = setTimeout(() => reject(new Error(
+            'LSP did not publish diagnostics for ' + uri.fsPath
+        )), 15000);
+    });
+    try {
+        const document = await vscode.workspace.openTextDocument(uri);
+        assert.equal(document.languageId, 'cvolo');
+        await vscode.window.showTextDocument(document, { preview: true });
+        await published;
+        return { document, diagnostics: vscode.languages.getDiagnostics(uri) };
+    } finally {
+        clearTimeout(timeout);
+        subscription.dispose();
+    }
+}
+
+function tokenTexts(document, result) {
+    const texts = [];
+    let line = 0;
+    let character = 0;
+    const data = result?.data || [];
+    for (let i = 0; i + 4 < data.length; i += 5) {
+        line += data[i];
+        character = data[i] === 0 ? character + data[i + 1] : data[i + 1];
+        const start = document.offsetAt(new vscode.Position(line, character));
+        const end = document.offsetAt(new vscode.Position(line, character + data[i + 2]));
+        texts.push(document.getText().slice(start, end));
+    }
+    return texts;
+}
+
+// The reviewed recovery matrix. Valid multi-line continuations are negative
+// controls: recovery must not split or reject them merely for containing a newline.
+const statementCases = [
+    [1, 'double', followIf, true],
+    [2, 'double x', followIf, true],
+    [3, 'double x =', followIf, true],
+    [4, 'double x = 0', followIf, true],
+    [5, 'double', 'while (false) { y = y + 1; }', true],
+    [6, 'double x', 'for (int k = 0; k < 0; k = k + 1) { y = y + 1; }', true],
+    [7, 'double x =', 'foreach (val item in items) { y = y + 1; }', true],
+    [8, 'double', 'return 1;', true],
+    [9, 'double x', 'break;', true],
+    [10, 'double x =', 'continue;', true],
+    [11, 'double', 'switch (y) { default: y = y + 1; }', true],
+    [12, 'double x', 'try { y = y + 1; } finally { y = y + 1; }', true],
+    [13, 'double x =', 'defer Touch();', true],
+    [14, 'double', 'unsafe { y = y + 1; }', true],
+    [15, 'double', 'val later = 1;', true],
+    [16, 'double x', 'var later = 1;', true],
+    [17, 'double x =', '{ 1, 2 };', false],
+    [18, 'double', 'split = 1;', false],
+    [19, 'double x =', 'reused = 1;', false],
+    [20, 'double x', 'reused = 1;', true],
+    [21, 'double x = 0', 'reused = 1;', true],
+    [22, 'double x;', followIf, false],
+    [23, 'double', 'split = 1;', false],
+    [24, 'double', 'split;', false],
+    [25, 'double x =', '1.5;', false],
+    [26, 'double x =', 'GetValue();', false],
+    [27, 'double x = 1', '+ 2;', false],
+    [28, 'double x = (', '1 + 2 );', false],
+    [29, 'double x =', 'ready ? 1 : 2;', false],
+    [30, 'Widget', 'value = Widget { Value: 1 };', false],
+    [31, 'Widget*', 'ptr = null;', false],
+    [32, 'Widget?', 'optional;', false],
+    [33, 'Widget[]', 'values;', false],
+    [34, 'Box<int>', 'item;', false],
+    [35, 'ref Widget', 'borrowed;', false],
+    [36, 'if', '(ready) { y = y + 1; }', false],
+    [37, 'while', '(false) { y = y + 1; }', false],
+    [38, 'widget.', 'Value = 5;', false],
+    [39, 'if', 'return 0;', true],
+    [40, 'while', followIf, true],
+    [41, 'GetValue(', followIf, true],
+    [42, 'y =', followIf, true],
+    [43, 'return', followIf, true],
+    [44, 'widget.Val', followIf, true],
+    [45, 'var x =', 'while (false) { y = y + 1; }', true],
+    [46, 'Widget other', 'return 0;', true],
+    [47, 'y = 1 +', '2;', false],
+    [48, 'GetValue(', 'y );', false],
+    [57, 'double x;', followIf, false, ' '],
+    [59, 'double // a comment', followIf, true]
+];
+const builtins = [
+    'int', 'uint', 'long', 'ulong', 'short', 'ushort', 'byte', 'sbyte',
+    'nint', 'nuint', 'float', 'double', 'bool', 'string', 'char', 'void'
+];
+const customTypes = ['Widget', 'Widget*', 'Widget?', 'Widget[]', 'Box<int>', 'ref Widget'];
+const contexts = ['function', 'extension', 'namespace', 'inner_if', 'inner_while', 'inner_block', 'inner_for'];
+
+suite('Cvolo parser recovery in real VS Code (E2E)', () => {
+    let scratch;
+    let client;
+    let counter = 0;
+
+    suiteSetup(async () => {
+        scratch = fs.mkdtempSync(path.join(fixtures, '.recovery-e2e-'));
+        client = await runningClient();
+        if (process.env.CVOLO_E2E_SERVER) {
+            const selected = vscode.workspace.getConfiguration('cvolo').get('server.path', '');
+            assert.equal(path.resolve(selected), path.resolve(process.env.CVOLO_E2E_SERVER),
+                'Host must run CVOLO_E2E_SERVER, not a stale bundled/PATH server');
+        }
+    });
+
+    suiteTeardown(async () => {
+        if (scratch) fs.rmSync(scratch, { recursive: true, force: true });
+    });
+
+    async function checkCase(label, before, next, invalid, context = 'function',
+        separator = '\n', newline = '\n') {
+        const source = makeSource(before, next, context, separator, newline);
+        const filename = path.join(scratch, 'recovery-' + String(++counter).padStart(4, '0') + '.cvl');
+        fs.writeFileSync(filename, source, 'utf8');
+        const uri = vscode.Uri.file(filename);
+        const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+        const syntax = diagnostics.filter(isSyntaxDiagnostic);
+        const nextStart = source.lastIndexOf(next);
+        const fragmentStart = source.lastIndexOf(before, nextStart);
+        const probe = source.indexOf('int afterProbe = 7;', nextStart);
+        assert.ok(fragmentStart >= 0 && nextStart > fragmentStart && probe > nextStart,
+            label + ': bad E2E fixture');
+        const position = d => document.offsetAt(d.range.start);
+        const roots = syntax.filter(d => position(d) >= fragmentStart && position(d) < nextStart);
+        assert.equal(roots.length > 0, invalid,
+            label + ': wrong diagnostics before the next statement\n' + describe(diagnostics));
+        const cascades = syntax.filter(d => position(d) >= nextStart);
+        assert.equal(cascades.length, 0,
+            label + ': parser poisoned the following statement or trailing code\n' + describe(diagnostics));
+
+        const tokens = await client.sendRequest('textDocument/semanticTokens/full', {
+            textDocument: { uri: uri.toString() }
+        });
+        assert.ok(tokenTexts(document, tokens).includes('afterProbe'),
+            label + ': the running LSP lost semantic tokens for the next local');
+    }
+
+    for (const [n, before, next, invalid, separator = '\n'] of statementCases) {
+        test('matrix #' + n + ': ' + before + ' / ' + next, async () => {
+            await checkCase('matrix #' + n, before, next, invalid, 'function', separator);
+        });
+    }
+
+    for (const type of builtins) {
+        for (const [suffix, invalid] of [['', true], [' x', true], [' x =', true], [' x = 1;', false]]) {
+            const before = type + suffix;
+            test('builtin ' + type + ': ' + JSON.stringify(before) + ' before if', async () => {
+                await checkCase(type + suffix, before, followIf, invalid);
+            });
+        }
+    }
+
+    for (const type of customTypes) {
+        for (const [suffix, invalid] of [['', true], [' x', true], [' x =', true], [' x;', false]]) {
+            const before = type + suffix;
+            test('custom ' + type + ': ' + JSON.stringify(before) + ' before if', async () => {
+                await checkCase(type + suffix, before, followIf, invalid);
+            });
+        }
+    }
+
+    for (const context of contexts) {
+        for (const [before, invalid] of [
+            ['double', true], ['double x', true], ['double x =', true], ['double x = 2;', false]
+        ]) {
+            test('scope ' + context + ': ' + before + ' before if', async () => {
+                await checkCase(context + '/' + before, before, followIf, invalid, context);
+            });
+        }
+    }
+
+    for (const newline of ['\n', '\r\n']) {
+        test('line ending ' + JSON.stringify(newline) + ' retains recovery', async () => {
+            await checkCase('line ending', 'double', followIf, true, 'function', '\n', newline);
+        });
+    }
+
+    test('two independent malformed declarations do not collapse into one', async () => {
+        const before = 'double\nif (ready) { y = y + 1; }\ndouble x =';
+        const next = 'while (false) { y = y + 1; }';
+        await checkCase('two roots', before, next, true);
+    });
+
+    test('incomplete local at EOF yields a bounded diagnostic', async () => {
+        const source = 'int main() {\n double';
+        const filename = path.join(scratch, 'recovery-eof.cvl');
+        fs.writeFileSync(filename, source, 'utf8');
+        const uri = vscode.Uri.file(filename);
+        const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+        assert.ok(diagnostics.some(isSyntaxDiagnostic),
+            'An unfinished declaration must be diagnosed: ' + describe(diagnostics));
+        assert.ok(diagnostics.every(d => document.offsetAt(d.range.end) <= source.length),
+            'A diagnostic must never extend past EOF: ' + describe(diagnostics));
+    });
+
+    test('missing field terminator keeps subsequent struct field', async () => {
+        const source = 'struct Fields {\n double missing\n int afterProbe;\n}\nint main() { return 0; }\n';
+        const filename = path.join(scratch, 'recovery-fields.cvl');
+        fs.writeFileSync(filename, source, 'utf8');
+        const uri = vscode.Uri.file(filename);
+        const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+        assert.ok(diagnostics.some(isSyntaxDiagnostic),
+            'Expected missing field terminator: ' + describe(diagnostics));
+        const tokens = await client.sendRequest('textDocument/semanticTokens/full', {
+            textDocument: { uri: uri.toString() }
+        });
+        assert.ok(tokenTexts(document, tokens).includes('afterProbe'),
+            'Malformed field must not hide the next field: ' + describe(diagnostics));
+    });
+});
