@@ -188,7 +188,8 @@ const builtins = [
 const customTypes = ['Widget', 'Widget*', 'Widget?', 'Widget[]', 'Box<int>', 'ref Widget'];
 const contexts = ['function', 'extension', 'namespace', 'inner_if', 'inner_while', 'inner_block', 'inner_for'];
 
-suite('Cvolo parser recovery in real VS Code (E2E)', () => {
+(process.env.CVOLO_RUN_RECOVERY_E2E === '1' ? suite : suite.skip)(
+    'Cvolo parser recovery in real VS Code (E2E)', () => {
     let scratch;
     let client;
     let counter = 0;
@@ -196,11 +197,12 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
     suiteSetup(async () => {
         scratch = fs.mkdtempSync(path.join(fixtures, '.recovery-e2e-'));
         client = await runningClient();
-        if (process.env.CVOLO_E2E_SERVER) {
-            const selected = vscode.workspace.getConfiguration('cvolo').get('server.path', '');
-            assert.equal(path.resolve(selected), path.resolve(process.env.CVOLO_E2E_SERVER),
-                'Host must run CVOLO_E2E_SERVER, not a stale bundled/PATH server');
-        }
+        const expected = process.env.CVOLO_E2E_SERVER;
+        assert.ok(expected && path.isAbsolute(expected),
+            'Recovery E2E requires CVOLO_E2E_SERVER to be an absolute freshly-built LSP path');
+        const selected = vscode.workspace.getConfiguration('cvolo').get('server.path', '');
+        assert.equal(path.resolve(selected), path.resolve(expected),
+            'Host must run CVOLO_E2E_SERVER, not a stale bundled/PATH server');
     });
 
     suiteTeardown(async () => {
