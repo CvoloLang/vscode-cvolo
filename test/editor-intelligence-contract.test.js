@@ -73,9 +73,14 @@ test('every documented layout view setting is contributed with its default', () 
   }
 });
 
-test('decoration settings are synchronized so a change needs no restart', () => {
+test('decoration settings are synchronized without adding extra server restarts', () => {
   assert.match(extensionSource, /synchronize:\s*\{\s*configurationSection:\s*'cvolo'\s*\}/s);
-  assert.equal((extensionSource.match(/affectsConfiguration\(/g) || []).length, 2);
+  const restartSettings = [...extensionSource.matchAll(/affectsConfiguration\(['"]([^'"]+)['"]\)/g)]
+    .map(match => match[1]).sort();
+  assert.deepEqual(restartSettings, ['cvolo.debug.logging', 'cvolo.libraryPaths', 'cvolo.server.path']);
+  for (const decoration of Object.keys(decorationDefaults)) {
+    assert.ok(!restartSettings.includes(decoration), `${decoration} must synchronize without a restart`);
+  }
 });
 
 test('the reference lens bridge stays a CodeLens command', () => {
