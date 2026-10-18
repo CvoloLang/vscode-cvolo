@@ -134,6 +134,12 @@
           "scope": "window",
           "description": "Trace communication between VS Code and the Cvolo Language Server."
         },
+        "cvolo.completion.insertArgumentPlaceholders": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Automatically insert parameter-name placeholders when accepting function or method completions with Tab (or Enter). Disable to insert the callable without argument placeholders."
+        },
         "cvolo.codeLens.references": {
           "type": "boolean",
           "default": true,
