@@ -199,6 +199,42 @@ async function createAndStartClient(context) {
     },
     outputChannel,
     revealOutputChannelOn: RevealOutputChannelOn.Error,
+    middleware: {
+      async provideSignatureHelp(document, position, triggerContext, token, next) {
+        // Observe the VS Code <-> languageclient boundary. The compiler log
+        // reports its own response, but not whether the client received and
+        // returned it to the editor. Do not record source text or arguments.
+        if (!debugEnabled) {
+          return next(document, position, triggerContext, token);
+        }
+        const start = Date.now();
+        const config = vscode.workspace.getConfiguration('editor', document.uri);
+        const enabled = config.get('parameterHints.enabled', true);
+        outputChannel.appendLine(
+          '[client][signatureHelp] start version=' + document.version
+          + ' position=' + position.line + ':' + position.character
+          + ' kind=' + triggerContext.triggerKind
+          + ' trigger=' + (triggerContext.triggerCharacter ?? 'none')
+          + ' parameterHints=' + enabled
+        );
+        try {
+          const response = await next(document, position, triggerContext, token);
+          outputChannel.appendLine(
+            '[client][signatureHelp] result requestedVersion=' + document.version
+            + ' signatures=' + (response?.signatures?.length ?? 0)
+            + ' cancelled=' + token.isCancellationRequested
+            + ' elapsed=' + (Date.now() - start) + 'ms'
+          );
+          return response;
+        } catch (error) {
+          outputChannel.appendLine(
+            '[client][signatureHelp] failure elapsed=' + (Date.now() - start)
+            + 'ms: ' + formatError(error)
+          );
+          throw error;
+        }
+      }
+    },
     synchronize: {
       configurationSection: 'cvolo'
     },

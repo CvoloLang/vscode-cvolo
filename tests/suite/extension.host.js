@@ -341,6 +341,36 @@ suite('Cvolo extension host contract', () => {
             `compiler items must still be offered (got ${JSON.stringify(labels)})`);
     });
 
+    test('signature help reaches VS Code for calls with missing arguments', async () => {
+        const client = await runningClient();
+        const triggers = client.initializeResult.capabilities.signatureHelpProvider?.triggerCharacters || [];
+        assert.ok(triggers.includes('('), 'the running server must advertise signature help on (');
+
+        const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'signature-help.cvl');
+        const document = await vscode.workspace.openTextDocument(file);
+        await vscode.window.showTextDocument(document);
+        await delay(2000);
+
+        const text = document.getText();
+        const offset = text.indexOf('    Begin();') + '    Begin('.length;
+        assert.ok(offset >= '    Begin('.length, 'fixture must include Begin()');
+        const position = document.positionAt(offset);
+        const signatures = await vscode.commands.executeCommand(
+            'vscode.executeSignatureHelpProvider', document.uri, position, '(');
+        assert.ok(signatures && signatures.signatures.length > 0,
+            'the VS Code provider must return at least one signature for Begin()');
+        assert.ok(signatures.signatures.some(entry => entry.label.includes('Begin(int mode)')),
+            'the provider must return Begin(int mode), even if the call lacks an argument');
+    });
+
+    test('the Cvolo editor has automatic parameter hints enabled', async () => {
+        const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'signature-help.cvl');
+        const document = await vscode.workspace.openTextDocument(file);
+        const config = vscode.workspace.getConfiguration('editor', { languageId: 'cvolo', uri: document.uri });
+        assert.equal(config.get('parameterHints.enabled'), true,
+            'automatic signature hints must be enabled for Cvolo');
+    });
+
     test('the effective Cvolo editor defaults keep completion and semantic tokens enabled', async () => {
         const file = path.join(__dirname, '..', 'fixtures', 'workspace', 'type-completion.cvl');
         const document = await vscode.workspace.openTextDocument(file);

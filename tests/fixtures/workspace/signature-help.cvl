@@ -1,0 +1,8 @@
+// The first call intentionally omits an argument so signature help must
+// display the available function even before the user has typed the value.
+void Begin(int mode) {}
+int Main() {
+    Begin();
+    Begin(1);
+    return 0;
+}

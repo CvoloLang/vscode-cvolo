@@ -37,7 +37,13 @@ test('LanguageClient id, selector, crash policy and restart command are canonica
 test('server path and loose library path configuration changes schedule a restart', () => {
   assert.match(extensionSource, /affectsConfiguration\(['"]cvolo\.server\.path['"]\)/);
   assert.match(extensionSource, /affectsConfiguration\(['"]cvolo\.libraryPaths['"]\)/);
-  assert.equal((extensionSource.match(/affectsConfiguration\(/g) || []).length, 2);
+  assert.equal((extensionSource.match(/affectsConfiguration\(/g) || []).length, 3);
+});
+
+test('debug mode traces signature help at the languageclient boundary without source text', () => {
+  assert.match(extensionSource, /middleware:\s*\{\s*async provideSignatureHelp\(/s);
+  assert.match(extensionSource, /\[client\]\[signatureHelp\] result/);
+  assert.doesNotMatch(extensionSource, /\[client\]\[signatureHelp\][^\n]*document\.getText\(/);
 });
 
 test('extracted package sources are marked read-only', () => {
