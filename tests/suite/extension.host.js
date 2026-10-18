@@ -256,7 +256,8 @@ suite('Cvolo extension host contract', () => {
 
         const text = document.getText();
         const brace = text.indexOf('{', text.indexOf('Window windo'));
-        const innerIndex = text.indexOf('\n\n', brace) + 1;
+        const innerIndex = text.indexOf('\n', brace) + 1;
+        assert.ok(innerIndex > brace, 'the initializer must contain a line after its opening brace');
         const position = document.positionAt(innerIndex);
 
         const list = await vscode.commands.executeCommand(
@@ -278,7 +279,9 @@ suite('Cvolo extension host contract', () => {
         await delay(2000);
 
         const text = document.getText();
-        const at = text.indexOf('i\n') + 1;
+        const prefix = /^\s*(i)(?=\r?$)/m.exec(text);
+        assert.ok(prefix, 'the fixture must contain the incomplete declaration prefix');
+        const at = prefix.index + prefix[0].length;
         const position = document.positionAt(at);
 
         const list = await vscode.commands.executeCommand(
@@ -324,7 +327,9 @@ suite('Cvolo extension host contract', () => {
         await delay(2000);
 
         const text = document.getText();
-        const at = text.indexOf('i\n') + 1;
+        const prefix = /^\s*(i)(?=\r?$)/m.exec(text);
+        assert.ok(prefix, 'the fixture must contain the incomplete declaration prefix');
+        const at = prefix.index + prefix[0].length;
         const position = document.positionAt(at);
 
         const list = await vscode.commands.executeCommand(
