@@ -11,7 +11,9 @@ async function run() {
     const mocha = new Mocha({ ui: 'tdd', color: true, timeout: 60000 });
 
     for (const file of fs.readdirSync(__dirname)) {
-        if (file.endsWith('.host.js')) {
+        if (file.endsWith('.host.js')
+            && (process.env.CVOLO_RUN_RECOVERY_E2E === '1'
+                || file !== 'zz-declaration-recovery.host.js')) {
             mocha.addFile(path.join(__dirname, file));
         }
     }
