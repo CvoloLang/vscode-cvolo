@@ -42,7 +42,9 @@ test('server path, library paths and debug logging are the only restart-triggeri
 });
 
 test('debug mode traces signature help at the languageclient boundary without source text', () => {
-  assert.match(extensionSource, /middleware:\s*\{\s*async provideSignatureHelp\(/s);
+  assert.match(extensionSource, /middleware:\s*\{[\s\S]*?async provideCompletionItem\(/);
+  assert.match(extensionSource, /async provideSignatureHelp\(/);
+  assert.match(extensionSource, /attachSignatureHelpAfterCallCompletion\(result, callableKinds\)/);
   assert.match(extensionSource, /\[client\]\[signatureHelp\] result/);
   assert.doesNotMatch(extensionSource, /\[client\]\[signatureHelp\][^\n]*document\.getText\(/);
 });
