@@ -541,8 +541,11 @@ if (!extensionSource.includes("affectsConfiguration('cvolo.server.path')")) {
 if (!extensionSource.includes("affectsConfiguration('cvolo.libraryPaths')")) {
   fail('cvolo.libraryPaths changes must trigger restart logic');
 }
-if ((extensionSource.match(/affectsConfiguration\(/g) || []).length !== 2) {
-  fail('only cvolo.server.path and cvolo.libraryPaths may have extension-owned configuration restart logic');
+const restartConfigurationKeys = [...extensionSource.matchAll(/affectsConfiguration\(['"]([^'"]+)['"]\)/g)]
+  .map(match => match[1]).sort();
+const expectedRestartKeys = ['cvolo.debug.logging', 'cvolo.libraryPaths', 'cvolo.server.path'];
+if (!sameArray(restartConfigurationKeys, expectedRestartKeys)) {
+  fail('only cvolo.server.path, cvolo.libraryPaths and cvolo.debug.logging may have extension-owned configuration restart logic');
 }
 if (/\.setTrace\s*\(/.test(extensionSource)) {
   fail('extension-owned protocol trace setTrace logic is forbidden');

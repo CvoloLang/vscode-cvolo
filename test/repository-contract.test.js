@@ -34,10 +34,11 @@ test('LanguageClient id, selector, crash policy and restart command are canonica
   assert.match(extensionSource, /cvolo\.restartLanguageServer/);
 });
 
-test('server path and loose library path configuration changes schedule a restart', () => {
-  assert.match(extensionSource, /affectsConfiguration\(['"]cvolo\.server\.path['"]\)/);
-  assert.match(extensionSource, /affectsConfiguration\(['"]cvolo\.libraryPaths['"]\)/);
-  assert.equal((extensionSource.match(/affectsConfiguration\(/g) || []).length, 3);
+test('server path, library paths and debug logging are the only restart-triggering settings', () => {
+  const actual = [...extensionSource.matchAll(/affectsConfiguration\(['"]([^'"]+)['"]\)/g)]
+    .map(match => match[1]).sort();
+  assert.deepEqual(actual, ['cvolo.debug.logging', 'cvolo.libraryPaths', 'cvolo.server.path']);
+  assert.deepEqual(pkg.contributes.configuration.properties['cvolo.debug.logging'].enum, ['auto', 'on', 'off']);
 });
 
 test('debug mode traces signature help at the languageclient boundary without source text', () => {
