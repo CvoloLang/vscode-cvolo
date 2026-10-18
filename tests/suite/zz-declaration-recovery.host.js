@@ -188,8 +188,7 @@ const builtins = [
 const customTypes = ['Widget', 'Widget*', 'Widget?', 'Widget[]', 'Box<int>', 'ref Widget'];
 const contexts = ['function', 'extension', 'namespace', 'inner_if', 'inner_while', 'inner_block', 'inner_for'];
 
-(process.env.CVOLO_RUN_RECOVERY_E2E === '1' ? suite : suite.skip)(
-    'Cvolo parser recovery in real VS Code (E2E)', () => {
+suite('Cvolo parser recovery in real VS Code (E2E)', () => {
     let scratch;
     let client;
     let counter = 0;
