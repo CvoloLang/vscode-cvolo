@@ -321,7 +321,7 @@
       "patterns": [
         {
           "name": "meta.type.declaration.cvolo",
-          "match": "\\b(struct|class|union|enum|interface|protocol|alias)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(struct|class|union|enum|interface|protocol|alias|extension)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": {
               "name": "storage.type.cvolo"
