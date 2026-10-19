@@ -336,6 +336,10 @@
     "keywords": {
       "patterns": [
         {
+          "name": "storage.type.declaration.cvolo",
+          "match": "\\b(?:struct|struc|stru|union|enum|extension|interface|protocol|alias|class)\\b"
+        },
+        {
           "name": "storage.type.primitive.cvolo",
           "match": "\\b(?:int|uint|long|ulong|short|ushort|byte|sbyte|nint|nuint|float|double|bool|string|char|void)\\b"
         },
