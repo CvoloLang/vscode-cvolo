@@ -643,6 +643,22 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
             'void x must be rejected: ' + describe(diagnostics));
     });
 
+    for (const [body, shouldDuplicate] of [
+        ['int x = 1;\nint x\nwhile (false) {}', true],
+        ['int x = 1;\nint y\nwhile (false) {}', false],
+        ['{ int x = 1; }\nint x\nwhile (false) {}', false]
+    ]) {
+        test('duplicate incomplete local follows lexical scope: ' + JSON.stringify(body), async () => {
+            const source = 'void Go() {\n' + body + '\n}\n';
+            const filename = path.join(scratch, 'duplicate-local-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { diagnostics } = await openAndAwaitDiagnostics(uri);
+            const duplicated = diagnostics.some(d => diagnosticCode(d) === 'CVL4140');
+            assert.equal(duplicated, shouldDuplicate, describe(diagnostics));
+        });
+    }
+
     for (const partial of ['str', 'stru', 'struc', 'struct']) {
         test('fresh file completion offers struct for ' + partial, async () => {
             const source = partial;
