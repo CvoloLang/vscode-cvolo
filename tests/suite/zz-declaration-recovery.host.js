@@ -616,6 +616,39 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
             'void x must be rejected: ' + describe(diagnostics));
     });
 
+    for (const partial of ['str', 'stru', 'struc', 'struct']) {
+        test('fresh file completion offers struct for ' + partial, async () => {
+            const source = partial;
+            const filename = path.join(scratch, 'top-level-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document } = await openAndAwaitDiagnostics(uri);
+            const list = await vscode.commands.executeCommand(
+                'vscode.executeCompletionItemProvider', uri, document.positionAt(source.length));
+            assert.ok((list?.items || []).some(item =>
+                (typeof item.label === 'string' ? item.label : item.label.label) === 'struct'),
+                partial + ': struct keyword should be offered in a brand new .cvl file');
+        });
+    }
+
+    for (const source of [
+        'struct GlfwWindow {\n    int\n}\n',
+        'struct GlfwWindow {\n    int Width;\n    int\n}\n'
+    ]) {
+        test('struct CodeLens survives incomplete field', async () => {
+            const filename = path.join(scratch, 'codelens-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document } = await openAndAwaitDiagnostics(uri);
+            const lenses = await vscode.commands.executeCommand('vscode.executeCodeLensProvider', uri);
+            const namePosition = source.indexOf('GlfwWindow');
+            assert.ok((lenses || []).some(lens =>
+                document.offsetAt(lens.range.start) <= namePosition &&
+                document.offsetAt(lens.range.end) >= namePosition),
+                'CodeLens must retain the GlfwWindow declaration after malformed field');
+        });
+    }
+
     test('incomplete local at EOF yields a bounded diagnostic', async () => {
         const source = 'int main() {\n double';
         const filename = path.join(scratch, 'recovery-eof.cvl');
