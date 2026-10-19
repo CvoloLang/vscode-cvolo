@@ -724,15 +724,22 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
     ].join('\n') + '\n';
 
     async function probeLive(body) {
-        const source = callPreamble + body + '\n    }\n}\n';
-        const filename = path.join(scratch, 'ambiguity-' + String(++counter) + '.cvl');
+        // Keep each document's symbols in a separate namespace. Every test
+        // leaves a real VS Code document open and the LSP analyzes all files
+        // in the same workspace: reusing 'struct Window' globally across
+        // probes produces a genuine CVL4054 unrelated to the tested edit.
+        const probeId = ++counter;
+        const namespaceStart = 'namespace HostRecoveryProbe' + probeId + ' {\n';
+        const source = namespaceStart + callPreamble + body + '\n    }\n}\n}\n';
+        const filename = path.join(scratch, 'ambiguity-' + String(probeId) + '.cvl');
         fs.writeFileSync(filename, source, 'utf8');
         const uri = vscode.Uri.file(filename);
         const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
         const semantic = await client.sendRequest('textDocument/semanticTokens/full', {
             textDocument: { uri: uri.toString() }
         });
-        return { source, uri, document, diagnostics, tokenNames: tokenTexts(document, semantic) };
+        return { source, uri, document, diagnostics,
+            namespaceStart, tokenNames: tokenTexts(document, semantic) };
     }
 
     for (const typo of ['Beg', 'Begi', 'MissingType']) {
@@ -813,7 +820,7 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
             'Initial unknown type should be diagnosed');
 
         async function replaceEditorBody(body) {
-            const source = callPreamble + body + '\n    }\n}\n';
+            const source = value.namespaceStart + callPreamble + body + '\n    }\n}\n}\n';
             const changed = new Promise((resolve, reject) => {
                 let subscription;
                 const timeout = setTimeout(() => {
