@@ -335,6 +335,40 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
         });
     }
 
+    for (const keyword of ['while', 'if']) {
+        test('destructor: empty ' + keyword + ' condition does not poison the next if', async () => {
+            const source = [
+                'public struct Widget { public int Value; }',
+                'public extension Widget {',
+                '    [UnsafeBody]',
+                '    public ~Widget() {',
+                '        ' + keyword + '() {}',
+                '        if (Value != 0) {',
+                '            Value = 0;',
+                '        }',
+                '    }',
+                '}'
+            ].join('\n') + '\n';
+            const filename = path.join(scratch, 'empty-condition-' + keyword + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+            const condition = source.indexOf(keyword + '()');
+            const next = source.indexOf('if (Value != 0)', condition);
+            const syntax = diagnostics.filter(isSyntaxDiagnostic);
+            const roots = syntax.filter(d => {
+                const offset = document.offsetAt(d.range.start);
+                return offset >= condition && offset < next;
+            });
+            assert.equal(roots.length, 1,
+                keyword + '(): expected exactly one condition error, got: ' + describe(diagnostics));
+            assert.match(roots[0].message, /condition/i);
+            assert.equal(document.offsetAt(roots[0].range.start), condition + keyword.length + 1);
+            assert.equal(syntax.filter(d => document.offsetAt(d.range.start) >= next).length, 0,
+                keyword + '(): next if should not inherit errors: ' + describe(diagnostics));
+        });
+    }
+
     test('incomplete local at EOF yields a bounded diagnostic', async () => {
         const source = 'int main() {\n double';
         const filename = path.join(scratch, 'recovery-eof.cvl');
