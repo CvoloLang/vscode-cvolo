@@ -566,6 +566,56 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
         });
     }
 
+    for (const [fragment, expected] of [
+        ['try {} ca', 'catch'],
+        ['try {} fi', 'finally'],
+        ['try {} catch {} fi', 'finally']
+    ]) {
+        test('handler completion: ' + fragment, async () => {
+            const source = 'void Go() {\n    ' + fragment + '\n}\n';
+            const filename = path.join(scratch, 'handlers-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document } = await openAndAwaitDiagnostics(uri);
+            const position = document.positionAt(source.indexOf(fragment) + fragment.length);
+            const response = await vscode.commands.executeCommand(
+                'vscode.executeCompletionItemProvider', uri, position);
+            assert.ok(response?.items?.some(item => 
+                (typeof item.label === 'string' ? item.label : item.label.label) === expected),
+                'Expected compiler handler keyword ' + expected + ' after ' + fragment);
+        });
+    }
+
+    for (const broken of ['for', 'foreach', 'defer', 'heap']) {
+        test('unfinished ' + broken + ' before loop preserves next statement', async () => {
+            const source = 'void Go() {\n    ' + broken
+                + '\n    while (false) {}\n    int afterProbe = 7;\n}\n';
+            const filename = path.join(scratch, 'missing-header-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+            const syntax = diagnostics.filter(isSyntaxDiagnostic);
+            const first = source.indexOf(broken);
+            const next = source.indexOf('while (false)');
+            assert.ok(syntax.some(d => {
+                const at = document.offsetAt(d.range.start);
+                return at >= first && at < next;
+            }), 'Broken ' + broken + ' must have localized diagnostic\n' + describe(diagnostics));
+            assert.equal(syntax.filter(d => document.offsetAt(d.range.start) >= next).length, 0,
+                'Following while must remain clean\n' + describe(diagnostics));
+        });
+    }
+
+    test('void local is rejected but void pointer is not', async () => {
+        const source = 'void Go() {\n    void x;\n    void* ptr;\n}\n';
+        const filename = path.join(scratch, 'void-locals-' + String(++counter) + '.cvl');
+        fs.writeFileSync(filename, source, 'utf8');
+        const uri = vscode.Uri.file(filename);
+        const { diagnostics } = await openAndAwaitDiagnostics(uri);
+        assert.ok(diagnostics.some(d => diagnosticCode(d) === 'CVL4220'),
+            'void x must be rejected: ' + describe(diagnostics));
+    });
+
     test('incomplete local at EOF yields a bounded diagnostic', async () => {
         const source = 'int main() {\n double';
         const filename = path.join(scratch, 'recovery-eof.cvl');
