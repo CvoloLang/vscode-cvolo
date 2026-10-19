@@ -282,6 +282,41 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
         await checkCase('two roots', before, next, true);
     });
 
+    for (const before of ['int', 'int x', 'int x =', 'int x = 1',
+        'double', 'double x', 'double x =', 'double x = 1']) {
+        test('destructor: ' + before + ' before if has exactly one syntax root', async () => {
+            const source = [
+                'public struct Widget { public int Value; }',
+                'public extension Widget {',
+                '    [UnsafeBody]',
+                '    public ~Widget() {',
+                '        ' + before,
+                '        if (Value != 0) {',
+                '            Value = 0;',
+                '        }',
+                '    }',
+                '}'
+            ].join('\\n') + '\\n';
+            const filename = path.join(scratch, 'destructor-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+            const from = source.indexOf('        ' + before + '\\n');
+            const until = source.indexOf('        if (Value', from);
+            const syntax = diagnostics.filter(isSyntaxDiagnostic);
+            const root = syntax.filter(d => {
+                const at = document.offsetAt(d.range.start);
+                return at >= from && at < until;
+            });
+            assert.equal(root.length, 1,
+                before + ': expected one syntax diagnostic on unfinished declaration.\\n'
+                + describe(diagnostics));
+            assert.equal(syntax.filter(d => document.offsetAt(d.range.start) >= until).length, 0,
+                before + ': unrelated if/next statements must not be damaged.\\n'
+                + describe(diagnostics));
+        });
+    }
+
     test('incomplete local at EOF yields a bounded diagnostic', async () => {
         const source = 'int main() {\n double';
         const filename = path.join(scratch, 'recovery-eof.cvl');
