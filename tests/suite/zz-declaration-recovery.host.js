@@ -311,6 +311,18 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
             assert.equal(root.length, 1,
                 before + ': expected one syntax diagnostic on unfinished declaration.\n'
                 + describe(diagnostics));
+            assert.ok(!/before '(if|while)'/i.test(root[0].message),
+                before + ': error should describe the broken declaration, not the next keyword');
+            const expectedOffset = before.endsWith('=')
+                ? from + 8 + before.length - 1
+                : before.includes(' = ')
+                    ? from + 8 + before.lastIndexOf(' ') + 1
+                    : before.endsWith(' x')
+                        ? from + 8 + before.length - 1
+                        : from + 8;
+            assert.equal(document.offsetAt(root[0].range.start), expectedOffset,
+                before + ': underline should point to the broken declaration');
+
             assert.equal(syntax.filter(d => document.offsetAt(d.range.start) >= until).length, 0,
                 before + ': unrelated if/next statements must not be damaged.\n'
                 + describe(diagnostics));
