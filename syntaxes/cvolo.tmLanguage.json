@@ -337,7 +337,7 @@
       "patterns": [
         {
           "name": "storage.type.declaration.cvolo",
-          "match": "\\b(?:struct|struc|stru|union|enum|extension|interface|protocol|alias|class)\\b"
+          "match": "\\b(?:struct|union|enum|extension|interface|protocol|alias)\\b"
         },
         {
           "name": "storage.type.primitive.cvolo",
