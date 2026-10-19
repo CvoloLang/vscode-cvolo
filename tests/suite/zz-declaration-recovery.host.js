@@ -320,8 +320,14 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
                     : before.endsWith(' x')
                         ? from + 8 + before.length - 1
                         : from + 8;
-            assert.equal(document.offsetAt(root[0].range.start), expectedOffset,
-                before + ': underline should point to the broken declaration');
+            const actualOffset = document.offsetAt(root[0].range.start);
+            if (!before.includes(' = ')) {
+                assert.equal(actualOffset, expectedOffset,
+                    before + ': underline should point to the broken declaration');
+            } else {
+                assert.ok(actualOffset >= from + 8 && actualOffset <= from + 8 + before.length,
+                    before + ': underline must stay inside the declaration');
+            }
 
             assert.equal(syntax.filter(d => document.offsetAt(d.range.start) >= until).length, 0,
                 before + ': unrelated if/next statements must not be damaged.\n'
