@@ -718,7 +718,7 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
         'void Begin(int mode) {}',
         'void SwapBuffers(int handle) {}',
         'bool Init() { return true; }',
-        'int Triangles = 1;',
+        'global int Triangles = 1;',
         'extension Window {',
         '    void Swap(ref this) {'
     ].join('\n') + '\n';
