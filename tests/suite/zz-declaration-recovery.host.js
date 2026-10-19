@@ -804,6 +804,58 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
         });
     }
 
+    test('sequential edits recompute diagnostics and semantic tokens on the same document', async () => {
+        const value = await probeLive('        Begi\n        Begin(Triangles);');
+        const uri = value.uri;
+        let document = value.document;
+        const diagnosticsAt = () => vscode.languages.getDiagnostics(uri);
+        assert.ok(diagnosticsAt().some(d => diagnosticCode(d) === 'CVL4023'),
+            'Initial unknown type should be diagnosed');
+
+        async function replaceEditorBody(body) {
+            const source = callPreamble + body + '\n    }\n}\n';
+            const changed = new Promise((resolve, reject) => {
+                let subscription;
+                const timeout = setTimeout(() => {
+                    subscription?.dispose();
+                    reject(new Error('No diagnostics notification after document edit'));
+                }, 15000);
+                subscription = vscode.languages.onDidChangeDiagnostics(event => {
+                    if (!event.uris.some(changed => changed.toString() === uri.toString())) return;
+                    clearTimeout(timeout);
+                    subscription.dispose();
+                    resolve();
+                });
+            });
+            const edit = new vscode.WorkspaceEdit();
+            const whole = new vscode.Range(document.positionAt(0),
+                document.positionAt(document.getText().length));
+            edit.replace(uri, whole, source);
+            assert.ok(await vscode.workspace.applyEdit(edit));
+            await changed;
+            document = await vscode.workspace.openTextDocument(uri);
+            assert.equal(document.getText(), source);
+            return source;
+        }
+
+        await replaceEditorBody('        bool x\n        Begin(Triangles);');
+        assert.ok(diagnosticsAt().some(d => diagnosticCode(d) === 'CVL4174'),
+            'After edit: missing semicolon should replace unknown-type error: '
+                + describe(diagnosticsAt()));
+        assert.ok(!diagnosticsAt().some(d => diagnosticCode(d) === 'CVL4023'),
+            describe(diagnosticsAt()));
+
+        await replaceEditorBody('        bool x;\n        Begin(Triangles);');
+        assert.equal(diagnosticsAt().filter(d => d.severity === vscode.DiagnosticSeverity.Error).length,
+            0, 'Fixed declaration must clear diagnostics: ' + describe(diagnosticsAt()));
+        const semantic = await client.sendRequest('textDocument/semanticTokens/full', {
+            textDocument: { uri: uri.toString() }
+        });
+        const names = tokenTexts(document, semantic);
+        assert.ok(names.includes('x'), 'Fixed local must remain in the semantic AST');
+        assert.ok(names.includes('Begin'), 'Independent Begin call must keep a semantic token');
+    });
+
     test('stray type before existing immutable assignment preserves both diagnostics', async () => {
         const value = await probeLive('        bool x;\n        Begi\n        x = Init();');
         assert.ok(value.diagnostics.some(d => diagnosticCode(d) === 'CVL4023'),
