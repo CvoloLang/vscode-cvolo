@@ -36,3 +36,13 @@ test('type declaration keyword is colored even before its name is typed', () => 
     assert.doesNotMatch(incomplete, new RegExp(declaration.match));
   }
 });
+
+test('attribute syntax keeps the C#-like name scope without treating strings as identifiers', () => {
+  const attribute = grammar.repository.attributes.patterns[0];
+  assert.equal(attribute.beginCaptures['2'].name, 'entity.name.type.attribute.cvolo');
+  for (const source of ['[Ctor]', '[SuppressWarning("CVL1002")]', '[Author("Example")]']) {
+    const match = new RegExp(attribute.begin).exec(source);
+    assert.ok(match, 'attribute must be recognized: ' + source);
+  }
+  assert.ok(attribute.patterns.some(pattern => pattern.include === '#strings'));
+});
