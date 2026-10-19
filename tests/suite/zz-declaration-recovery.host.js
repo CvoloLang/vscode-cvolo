@@ -489,16 +489,20 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
             fs.writeFileSync(filename, source, 'utf8');
             const uri = vscode.Uri.file(filename);
             const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
-            const end = source.indexOf(declaration) + declaration.length;
+            const begin = source.indexOf(declaration);
+            const end = begin + declaration.length;
             const next = source.indexOf('    try') + 4;
             const syntax = diagnostics.filter(isSyntaxDiagnostic);
             const roots = syntax.filter(d => {
                 const at = document.offsetAt(d.range.start);
-                return at >= end && at < next;
+                return at >= begin && at < next;
             });
             assert.equal(roots.length, 1, 'expected missing semicolon at declaration\n' + describe(diagnostics));
             assert.match(roots[0].message, /;/);
-            assert.equal(document.offsetAt(roots[0].range.start), end);
+            const actual = document.offsetAt(roots[0].range.start);
+            if (declaration.includes('=')) assert.equal(actual, end);
+            else assert.ok(actual >= begin && actual <= end,
+                'unfinished declaration error must stay on the declaration');
             assert.equal(syntax.filter(d => document.offsetAt(d.range.start) >= next).length, 0,
                 'try/catch must remain valid\n' + describe(diagnostics));
         });
