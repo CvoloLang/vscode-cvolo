@@ -107,7 +107,7 @@ test('generic delimiters are operators, not comparison-only text', () => {
 
 test('local identifiers keep a neutral scope and are never claimed as types', () => {
   const typeReference = rule('type-references').patterns[0].match;
-  assert.ok(new RegExp(typeReference).test('Layout'), 'a concrete type name is a type reference');
+  assert.ok(!new RegExp(typeReference).test('Layout'), 'lexical coloring must not guess that an uppercase identifier is a type');
   assert.ok(!new RegExp(typeReference).test('allocator'), 'a local identifier is not a type reference');
   assert.ok(!new RegExp(typeReference).test('layout'), 'a local identifier is not a type reference');
 });
