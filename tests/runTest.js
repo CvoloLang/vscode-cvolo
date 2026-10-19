@@ -13,6 +13,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const { spawnSync } = require('node:child_process');
 const { runTests } = require('@vscode/test-electron');
 
 async function main() {
@@ -27,6 +28,39 @@ async function main() {
     const server = process.env.CVOLO_E2E_SERVER;
     if (recovery && (!server || !path.isAbsolute(server) || !fs.statSync(server, { throwIfNoEntry: false })?.isFile())) {
         throw new Error('Set CVOLO_E2E_SERVER to an existing absolute Language Server executable for recovery E2E');
+    }
+    if (recovery) {
+        // The binary's embedded revision is the development build identity:
+        // never infer it from the extension checkout or the executable filename.
+        const probe = spawnSync(server, ['--version', '--json'], {
+            encoding: 'utf8', windowsHide: true, timeout: 15000
+        });
+        if (probe.error || probe.status !== 0) {
+            throw new Error('Cannot read server build identity (--version --json): '
+                + (probe.error?.message || probe.stderr || 'exit ' + probe.status));
+        }
+        let version;
+        try {
+            version = JSON.parse(probe.stdout.trim());
+        } catch {
+            throw new Error('Language Server --version --json must return one JSON object');
+        }
+        const sha = /^[0-9a-f]{40}$/i;
+        if (!sha.test(version.languageServerCommit || '')) {
+            throw new Error('LSP development build has no embedded commit SHA: '
+                + String(version.languageServerCommit));
+        }
+        console.log('[recovery:e2e] LSP dev revision:', version.languageServerCommit);
+        console.log('[recovery:e2e] Tooling release:', version.toolingVersion,
+            'source revision:', version.toolingCommit || 'unknown');
+        if (process.env.CVOLO_E2E_LSP_COMMIT
+            && version.languageServerCommit !== process.env.CVOLO_E2E_LSP_COMMIT) {
+            throw new Error('Running LSP commit differs from CVOLO_E2E_LSP_COMMIT');
+        }
+        if (process.env.CVOLO_E2E_TOOLING_COMMIT
+            && version.toolingCommit !== process.env.CVOLO_E2E_TOOLING_COMMIT) {
+            throw new Error('Running Tooling commit differs from CVOLO_E2E_TOOLING_COMMIT');
+        }
     }
     const userDataDir = recovery ? fs.mkdtempSync(path.join(os.tmpdir(), 'cvolo-e2e-user-')) : null;
     if (userDataDir) {
