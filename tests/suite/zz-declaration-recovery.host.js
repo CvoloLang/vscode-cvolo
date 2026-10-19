@@ -866,6 +866,35 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
             'Do not synthesize a second declaration for x: ' + describe(value.diagnostics));
     });
 
+    test('Begi and bare local before next function call produce local roots', async () => {
+        const value = await probeLive('        bool x;\n        Begi\n        x\n        SwapBuffers(glfwWindow);');
+        const headAt = value.source.indexOf('Begi\n');
+        const bareAt = value.source.indexOf('x\n', headAt);
+        const callAt = value.source.indexOf('SwapBuffers(glfwWindow);', bareAt);
+        assert.ok(value.diagnostics.some(d => diagnosticCode(d) === 'CVL4023'
+            && value.document.offsetAt(d.range.start) === headAt),
+            describe(value.diagnostics));
+        assert.ok(value.diagnostics.some(d => diagnosticCode(d) === 'CVL4174'
+            && value.document.offsetAt(d.range.start) >= bareAt
+            && value.document.offsetAt(d.range.start) < callAt),
+            describe(value.diagnostics));
+        assert.ok(value.diagnostics.every(d => value.document.offsetAt(d.range.start) < callAt),
+            'Next call must survive the two independent incomplete lines: ' + describe(value.diagnostics));
+    });
+
+    test('missing semicolon after a complete Begin call points to the call end', async () => {
+        const value = await probeLive('        Begin(Triangles)\n        glfwWindow = 1;');
+        const insertion = value.source.indexOf('Begin(Triangles)')
+            + 'Begin(Triangles)'.length;
+        assert.ok(value.diagnostics.some(d => diagnosticCode(d) === 'CVL4174'
+            && value.document.offsetAt(d.range.start) === insertion),
+            'Missing semicolon must be anchored after the complete call: '
+                + describe(value.diagnostics));
+        assert.ok(value.diagnostics.every(d => value.document.offsetAt(d.range.start)
+            < value.source.indexOf('glfwWindow = 1;')),
+            describe(value.diagnostics));
+    });
+
     test('stray type before existing field assignment does not duplicate field', async () => {
         const value = await probeLive('        Begi\n        glfwWindow = 1;');
         assert.ok(value.diagnostics.some(d => diagnosticCode(d) === 'CVL4023'),
