@@ -522,6 +522,50 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
         });
     }
 
+    for (const [fragment, expectedWord] of [
+        ['if (x ==) {} else {}', 'expression'],
+        ['if (x ==) {} else\nwhile (false) {}', 'expression'],
+        ['while (x ==) {}', 'expression'],
+        ['try {} catch\nwhile (false) {}', 'catch'],
+        ['try {} catch\nif (true) {}', 'catch']
+    ]) {
+        test('preserve following control flow and CodeLens: ' + JSON.stringify(fragment), async () => {
+            const source = 'void Go() {\n    int x = 1;\n    ' + fragment
+                + '\n    int afterProbe = 7;\n}\n';
+            const filename = path.join(scratch, 'recover-control-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+            const syntax = diagnostics.filter(isSyntaxDiagnostic);
+            assert.equal(syntax.length, 1, 'exactly one parser error expected\n' + describe(diagnostics));
+            assert.match(syntax[0].message, new RegExp(expectedWord, 'i'));
+            const next = source.indexOf('int afterProbe');
+            assert.ok(document.offsetAt(syntax[0].range.start) < next,
+                'error should not be placed on the subsequent valid statement');
+            const lenses = await client.sendRequest('textDocument/codeLens', {
+                textDocument: { uri: uri.toString() }
+            });
+            assert.ok(lenses === null || Array.isArray(lenses),
+                'CodeLens request should return an array or null, never crash');
+        });
+    }
+
+    for (const fragment of [
+        'if (x == 0) {} else while (false) {}',
+        'if (x == 0) {} else\nwhile (false) {}',
+        'if (x == 0) {} else\n{}'
+    ]) {
+        test('valid else with unbraced while: ' + JSON.stringify(fragment), async () => {
+            const source = 'void Go() {\n    int x = 0;\n    ' + fragment + '\n}\n';
+            const filename = path.join(scratch, 'else-valid-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { diagnostics } = await openAndAwaitDiagnostics(uri);
+            assert.equal(diagnostics.filter(isSyntaxDiagnostic).length, 0,
+                'unbraced else statement is valid under Cvolo grammar\n' + describe(diagnostics));
+        });
+    }
+
     test('incomplete local at EOF yields a bounded diagnostic', async () => {
         const source = 'int main() {\n double';
         const filename = path.join(scratch, 'recovery-eof.cvl');
