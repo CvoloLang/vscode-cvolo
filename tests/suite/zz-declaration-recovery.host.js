@@ -296,12 +296,12 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
                 '        }',
                 '    }',
                 '}'
-            ].join('\\n') + '\\n';
+            ].join('\n') + '\n';
             const filename = path.join(scratch, 'destructor-' + String(++counter) + '.cvl');
             fs.writeFileSync(filename, source, 'utf8');
             const uri = vscode.Uri.file(filename);
             const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
-            const from = source.indexOf('        ' + before + '\\n');
+            const from = source.indexOf('        ' + before + '\n');
             const until = source.indexOf('        if (Value', from);
             const syntax = diagnostics.filter(isSyntaxDiagnostic);
             const root = syntax.filter(d => {
@@ -309,10 +309,10 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
                 return at >= from && at < until;
             });
             assert.equal(root.length, 1,
-                before + ': expected one syntax diagnostic on unfinished declaration.\\n'
+                before + ': expected one syntax diagnostic on unfinished declaration.\n'
                 + describe(diagnostics));
             assert.equal(syntax.filter(d => document.offsetAt(d.range.start) >= until).length, 0,
-                before + ': unrelated if/next statements must not be damaged.\\n'
+                before + ': unrelated if/next statements must not be damaged.\n'
                 + describe(diagnostics));
         });
     }
