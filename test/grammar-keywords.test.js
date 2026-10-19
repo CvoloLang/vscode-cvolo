@@ -25,3 +25,14 @@ test('native delegate keywords remain independently classifiable', () => {
   const regex = new RegExp(modifiers.match, 'g');
   assert.deepEqual('public unsafe delegate'.match(regex), ['public', 'unsafe', 'delegate']);
 });
+
+test('type declaration keyword is colored even before its name is typed', () => {
+  const declaration = patternNamed('storage.type.declaration.cvolo');
+  assert.ok(declaration, 'standalone type declaration keyword scope must exist');
+  for (const keyword of ['struct', 'union', 'enum', 'extension', 'interface', 'protocol', 'alias']) {
+    assert.match(keyword, new RegExp(declaration.match));
+  }
+  for (const incomplete of ['stru', 'struc', 'randomStruct']) {
+    assert.doesNotMatch(incomplete, new RegExp(declaration.match));
+  }
+});
