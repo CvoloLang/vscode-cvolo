@@ -400,6 +400,27 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
         }
     }
 
+    for (const keyword of ['if', 'while']) {
+        test('unterminated header ' + keyword + '( before while', async () => {
+            const source = 'void Go() {\n    ' + keyword + '(\n    while (false) {}\n}\n';
+            const filename = path.join(scratch, 'unterminated-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+            const start = source.indexOf(keyword + '(');
+            const next = source.indexOf('while (false)', start + keyword.length + 1);
+            const syntax = diagnostics.filter(isSyntaxDiagnostic);
+            const roots = syntax.filter(d => {
+                const offset = document.offsetAt(d.range.start);
+                return offset >= start && offset < next;
+            });
+            assert.equal(roots.length, 1, keyword + '(: expected one syntax error\n' + describe(diagnostics));
+            assert.match(roots[0].message, /condition/i);
+            assert.equal(syntax.filter(d => document.offsetAt(d.range.start) >= next).length, 0,
+                keyword + '(: following while must stay valid\n' + describe(diagnostics));
+        });
+    }
+
     for (const [fragment, known] of [
         ['Widget', true], ['Widget x', true], ['Widget x =', true],
         ['Widget* x =', true], ['Widget? x =', true], ['Widget[] x =', true],
