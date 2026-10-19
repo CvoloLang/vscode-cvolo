@@ -455,6 +455,69 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
         });
     }
 
+    for (const following of [
+        'while (false) {}', 'if (true) {}', 'return;',
+        'for (int i = 0; i < 1; i = i + 1) {}'
+    ]) {
+        test('try without block before ' + following + ' is localized', async () => {
+            const source = 'void Go() {\n    try\n    ' + following
+                + '\n    int afterProbe = 7;\n}\n';
+            const filename = path.join(scratch, 'try-bare-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+            const begin = source.indexOf('    try') + 4;
+            const next = source.indexOf(following, begin);
+            const syntax = diagnostics.filter(isSyntaxDiagnostic);
+            const roots = syntax.filter(d => {
+                const at = document.offsetAt(d.range.start);
+                return at >= begin && at < next;
+            });
+            assert.equal(roots.length, 1, 'expected one localized try error\n' + describe(diagnostics));
+            assert.match(roots[0].message, /try/i);
+            assert.equal(document.offsetAt(roots[0].range.start), begin);
+            assert.equal(syntax.filter(d => document.offsetAt(d.range.start) >= next).length, 0,
+                'valid statement after try must not acquire errors\n' + describe(diagnostics));
+        });
+    }
+
+    for (const declaration of ['int x = 0', 'double x = 0', 'int x']) {
+        test('missing semicolon before try: ' + declaration, async () => {
+            const source = 'void Go() {\n    ' + declaration
+                + '\n    try {} catch {}\n    int afterProbe = 7;\n}\n';
+            const filename = path.join(scratch, 'try-semicolon-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+            const end = source.indexOf(declaration) + declaration.length;
+            const next = source.indexOf('    try') + 4;
+            const syntax = diagnostics.filter(isSyntaxDiagnostic);
+            const roots = syntax.filter(d => {
+                const at = document.offsetAt(d.range.start);
+                return at >= end && at < next;
+            });
+            assert.equal(roots.length, 1, 'expected missing semicolon at declaration\n' + describe(diagnostics));
+            assert.match(roots[0].message, /;/);
+            assert.equal(document.offsetAt(roots[0].range.start), end);
+            assert.equal(syntax.filter(d => document.offsetAt(d.range.start) >= next).length, 0,
+                'try/catch must remain valid\n' + describe(diagnostics));
+        });
+    }
+
+    for (const statement of [
+        'try {} catch {}', 'try {} finally {}', 'try\n{} catch {}'
+    ]) {
+        test('valid try/catch continuation: ' + JSON.stringify(statement), async () => {
+            const source = 'void Go() {\n    ' + statement + '\n    int afterProbe = 7;\n}\n';
+            const filename = path.join(scratch, 'try-valid-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { diagnostics } = await openAndAwaitDiagnostics(uri);
+            assert.equal(diagnostics.filter(isSyntaxDiagnostic).length, 0,
+                'valid multiline try construct must not be split\n' + describe(diagnostics));
+        });
+    }
+
     test('incomplete local at EOF yields a bounded diagnostic', async () => {
         const source = 'int main() {\n double';
         const filename = path.join(scratch, 'recovery-eof.cvl');
