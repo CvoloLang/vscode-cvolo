@@ -659,6 +659,25 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
         });
     }
 
+    for (const [sourceTail, expected] of [
+        ['extension ', ['VulkanWindow', 'GlfwWindow']],
+        ['extension Glf', ['GlfwWindow']]
+    ]) {
+        test('extension completion offers nearest preceding struct names', async () => {
+            const source = 'struct GlfwWindow {}\nstruct VulkanWindow {}\n\n' + sourceTail;
+            const filename = path.join(scratch, 'extension-types-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document } = await openAndAwaitDiagnostics(uri);
+            const completion = await vscode.commands.executeCommand(
+                'vscode.executeCompletionItemProvider', uri, document.positionAt(source.length), ' ');
+            const labels = (completion?.items || []).map(item =>
+                typeof item.label === 'string' ? item.label : item.label.label);
+            assert.deepEqual(labels.filter(label => expected.includes(label)).slice(0, expected.length), expected,
+                'extension must prefer actual preceding types by proximity');
+        });
+    }
+
     for (const partial of ['str', 'stru', 'struc', 'struct']) {
         test('fresh file completion offers struct for ' + partial, async () => {
             const source = partial;
