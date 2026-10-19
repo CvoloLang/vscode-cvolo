@@ -369,6 +369,71 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
         });
     }
 
+    for (const keyword of ['if', 'while']) {
+        for (const [body, following] of [
+            ['', 'while (false) {}'],
+            [' {}', 'while (false) {}'],
+            ['', 'if (true) {}'],
+            ['', 'return;']
+        ]) {
+            test('control recovery: ' + keyword + '()' + body + ' / ' + following, async () => {
+                const source = 'void Go() {\n    ' + keyword + '()' + body
+                    + '\n    ' + following + '\n}\n';
+                const filename = path.join(scratch, 'control-' + String(++counter) + '.cvl');
+                fs.writeFileSync(filename, source, 'utf8');
+                const uri = vscode.Uri.file(filename);
+                const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+                const start = source.indexOf(keyword + '()');
+                const next = source.indexOf(following, start + keyword.length + 2);
+                const syntax = diagnostics.filter(isSyntaxDiagnostic);
+                const before = syntax.filter(d => {
+                    const offset = document.offsetAt(d.range.start);
+                    return offset >= start && offset < next;
+                });
+                assert.equal(before.length, 1,
+                    keyword + '(): expected a single localized diagnostic\n' + describe(diagnostics));
+                assert.match(before[0].message, /condition/i);
+                assert.equal(document.offsetAt(before[0].range.start), start + keyword.length + 1);
+                assert.equal(syntax.filter(d => document.offsetAt(d.range.start) >= next).length, 0,
+                    keyword + '(): the following statement must be preserved\n' + describe(diagnostics));
+            });
+        }
+    }
+
+    for (const [fragment, known] of [
+        ['Widget', true], ['Widget x', true], ['Widget x =', true],
+        ['Widget* x =', true], ['Widget? x =', true], ['Widget[] x =', true],
+        ['NonexistentWidget x =', false]
+    ]) {
+        test('semantic token on recovered type head: ' + fragment, async () => {
+            const source = 'public struct Widget { public int Value; }\nvoid Go() {\n    '
+                + fragment + '\n    while (false) {}\n}\n';
+            const filename = path.join(scratch, 'recover-type-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document } = await openAndAwaitDiagnostics(uri);
+            const raw = await client.sendRequest('textDocument/semanticTokens/full', {
+                textDocument: { uri: uri.toString() }
+            });
+            const start = source.indexOf('    ' + fragment) + 4;
+            const typeText = fragment.split(/[ *?\[]/)[0];
+            let line = 0, column = 0, found = false;
+            for (let i = 0; i + 4 < (raw?.data?.length || 0); i += 5) {
+                const deltaLine = raw.data[i];
+                line += deltaLine;
+                column = deltaLine ? raw.data[i + 1] : column + raw.data[i + 1];
+                const at = document.offsetAt(new vscode.Position(line, column));
+                if (at === start && document.getText().slice(at, at + raw.data[i + 2]) === typeText) {
+                    // Types must not be downgraded to variable/function token kinds.
+                    const tokenType = client.initializeResult?.capabilities?.semanticTokensProvider
+                        ?.legend?.tokenTypes?.[raw.data[i + 3]];
+                    found = ['class', 'struct', 'interface', 'enum', 'type', 'typeParameter'].includes(tokenType);
+                }
+            }
+            assert.equal(found, known, fragment + ': expected real compiler-backed type semantic token');
+        });
+    }
+
     test('incomplete local at EOF yields a bounded diagnostic', async () => {
         const source = 'int main() {\n double';
         const filename = path.join(scratch, 'recovery-eof.cvl');
