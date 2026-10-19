@@ -711,6 +711,117 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
         });
     }
 
+    // Real host regression matrix for edit-time ambiguity. Do not simulate LSP
+    // calls in unit tests: these checks require the configured running server.
+    const callPreamble = [
+        'struct Window { int glfwWindow; }',
+        'void Begin(int mode) {}',
+        'void SwapBuffers(int handle) {}',
+        'bool Init() { return true; }',
+        'int Triangles = 1;',
+        'extension Window {',
+        '    void Swap(ref this) {'
+    ].join('\n') + '\n';
+
+    async function probeLive(body) {
+        const source = callPreamble + body + '\n    }\n}\n';
+        const filename = path.join(scratch, 'ambiguity-' + String(++counter) + '.cvl');
+        fs.writeFileSync(filename, source, 'utf8');
+        const uri = vscode.Uri.file(filename);
+        const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+        const semantic = await client.sendRequest('textDocument/semanticTokens/full', {
+            textDocument: { uri: uri.toString() }
+        });
+        return { source, uri, document, diagnostics, tokenNames: tokenTexts(document, semantic) };
+    }
+
+    for (const typo of ['Beg', 'Begi', 'MissingType']) {
+        test('ambiguous type head ' + typo + ' preserves Begin call', async () => {
+            const value = await probeLive('        ' + typo + '\n        Begin(Triangles);');
+            const headAt = value.source.indexOf(typo + '\n');
+            const nextAt = value.source.indexOf('Begin(Triangles);');
+            assert.ok(value.diagnostics.some(d => diagnosticCode(d) === 'CVL4023'
+                && value.document.offsetAt(d.range.start) === headAt),
+                describe(value.diagnostics));
+            assert.ok(value.diagnostics.every(d => value.document.offsetAt(d.range.start) < nextAt),
+                'Next call must not inherit the malformed head: ' + describe(value.diagnostics));
+            assert.ok(value.tokenNames.includes('Begin'),
+                'The surviving function call must have a semantic token');
+        });
+    }
+
+    for (const [body, expectedCode, before, next] of [
+        ['bool x\n        SwapBuffers(glfwWindow);', 'CVL4174', 'bool x', 'SwapBuffers(glfwWindow);'],
+        ['bool x\n        Begin(Triangles);', 'CVL4174', 'bool x', 'Begin(Triangles);'],
+        ['bool x =\n        SwapBuffers(glfwWindow);', null, 'bool x =', 'SwapBuffers(glfwWindow);']
+    ]) {
+        test('multiline local preserves next call: ' + JSON.stringify(body), async () => {
+            const value = await probeLive('        ' + body);
+            const nextAt = value.source.indexOf(next, value.source.indexOf('void Swap(ref this)'));
+            if (expectedCode) {
+                const end = value.source.indexOf(before, value.source.indexOf('void Swap(ref this)'))
+                    + before.length;
+                assert.ok(value.diagnostics.some(d => diagnosticCode(d) === expectedCode
+                    && value.document.offsetAt(d.range.start) === end),
+                    'Expected missing semicolon at end of declaration: ' + describe(value.diagnostics));
+                assert.ok(value.diagnostics.every(d => value.document.offsetAt(d.range.start) < nextAt),
+                    'No cascade on valid next call: ' + describe(value.diagnostics));
+            } else {
+                assert.ok(value.diagnostics.some(d =>
+                    /Cannot initialize variable.*bool.*void/.test(d.message)),
+                    'Multiline void initializer must be a type error: ' + describe(value.diagnostics));
+                assert.ok(!value.diagnostics.some(d => diagnosticCode(d) === 'CVL4174'),
+                    'An explicit = must not be treated as a missing semicolon');
+            }
+            assert.ok(value.tokenNames.includes('SwapBuffers') || value.tokenNames.includes('Begin'),
+                'Expected semantic tokens for the actual call');
+        });
+    }
+
+    for (const body of [
+        '        bool x =\n        Init();',
+        '        bool x = Init();\n        SwapBuffers(glfwWindow);',
+        '        defer\n        SwapBuffers(glfwWindow);'
+    ]) {
+        test('legal multiline continuation: ' + JSON.stringify(body), async () => {
+            const value = await probeLive(body);
+            assert.equal(value.diagnostics.filter(d => d.severity === vscode.DiagnosticSeverity.Error).length,
+                0, describe(value.diagnostics));
+        });
+    }
+
+    for (const keyword of ['if', 'while']) {
+        test('broken ' + keyword + ' header has one root and keeps Begin', async () => {
+            const value = await probeLive('        ' + keyword + '\n        Begin(Triangles);');
+            const start = value.source.lastIndexOf('        ' + keyword + '\n') + 8;
+            const nextAt = value.source.indexOf('Begin(Triangles);');
+            const syntax = value.diagnostics.filter(isSyntaxDiagnostic);
+            assert.equal(syntax.length, 1, describe(value.diagnostics));
+            assert.equal(value.document.offsetAt(syntax[0].range.start), start);
+            assert.equal(value.document.offsetAt(syntax[0].range.end), start + keyword.length);
+            assert.ok(value.diagnostics.every(d => value.document.offsetAt(d.range.start) < nextAt),
+                describe(value.diagnostics));
+        });
+    }
+
+    test('stray type before existing immutable assignment preserves both diagnostics', async () => {
+        const value = await probeLive('        bool x;\n        Begi\n        x = Init();');
+        assert.ok(value.diagnostics.some(d => diagnosticCode(d) === 'CVL4023'),
+            describe(value.diagnostics));
+        assert.ok(value.diagnostics.some(d => /Cannot assign to immutable variable 'x'/.test(d.message)),
+            'Immutable assignment must not be suppressed: ' + describe(value.diagnostics));
+        assert.ok(!value.diagnostics.some(d => /already declared/.test(d.message)),
+            'Do not synthesize a second declaration for x: ' + describe(value.diagnostics));
+    });
+
+    test('stray type before existing field assignment does not duplicate field', async () => {
+        const value = await probeLive('        Begi\n        glfwWindow = 1;');
+        assert.ok(value.diagnostics.some(d => diagnosticCode(d) === 'CVL4023'),
+            describe(value.diagnostics));
+        assert.ok(!value.diagnostics.some(d => /already declared/.test(d.message)),
+            describe(value.diagnostics));
+    });
+
     test('incomplete local at EOF yields a bounded diagnostic', async () => {
         const source = 'int main() {\n double';
         const filename = path.join(scratch, 'recovery-eof.cvl');
