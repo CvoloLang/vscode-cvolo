@@ -63,7 +63,7 @@ function diagnosticCode(diagnostic) {
 }
 
 function isSyntaxDiagnostic(diagnostic) {
-    return /^CVL417[345]$|^CVL0000$/.test(diagnosticCode(diagnostic))
+    return /^CVL417[345]$|^CVL0000$|^CVL1065$/.test(diagnosticCode(diagnostic))
         || /no viable alternative|missing ';'|unexpected token|extraneous input/i.test(diagnostic.message);
 }
 
@@ -519,6 +519,33 @@ suite('Cvolo parser recovery in real VS Code (E2E)', () => {
             const { diagnostics } = await openAndAwaitDiagnostics(uri);
             assert.equal(diagnostics.filter(isSyntaxDiagnostic).length, 0,
                 'valid multiline try construct must not be split\n' + describe(diagnostics));
+        });
+    }
+
+    for (const [fragment, expectedValid] of [
+        ['try {} catch {} finally\nwhile (false) {}', false],
+        ['try {} finally\nif (true) {}', false],
+        ['try {} catch {} finally\n{}', true],
+        ['try {} finally {}', true]
+    ]) {
+        test('finally recovery: ' + JSON.stringify(fragment), async () => {
+            const source = 'void Go() {\n    ' + fragment
+                + '\n    int afterProbe = 7;\n}\n';
+            const filename = path.join(scratch, 'finally-' + String(++counter) + '.cvl');
+            fs.writeFileSync(filename, source, 'utf8');
+            const uri = vscode.Uri.file(filename);
+            const { document, diagnostics } = await openAndAwaitDiagnostics(uri);
+            const syntax = diagnostics.filter(isSyntaxDiagnostic);
+            if (expectedValid) {
+                assert.equal(syntax.length, 0, describe(diagnostics));
+            } else {
+                assert.equal(syntax.length, 1, describe(diagnostics));
+                assert.match(syntax[0].message, /finally/i);
+                const following = source.indexOf('while (false)') >= 0
+                    ? source.indexOf('while (false)') : source.indexOf('if (true)');
+                assert.ok(document.offsetAt(syntax[0].range.start) < following,
+                    'diagnostic must stay on finally');
+            }
         });
     }
 
