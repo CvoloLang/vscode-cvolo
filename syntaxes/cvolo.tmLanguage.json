@@ -396,7 +396,8 @@
       "patterns": [
         {
           "name": "entity.name.type.cvolo",
-          "match": "\\b[A-Z][A-Za-z0-9_]*\\b"
+          "match": "(?!)",
+          "comment": "Unresolved uppercase identifiers must remain neutral. Actual types are classified by compiler semantic tokens; declarations and generic type parameters have explicit lexical scopes."
         }
       ]
     },
