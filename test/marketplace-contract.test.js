@@ -13,7 +13,7 @@ const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 test('publisher, name and version are the frozen Marketplace identity', () => {
   assert.equal(pkg.publisher, 'cvololang');
   assert.equal(pkg.name, 'cvolo-language');
-  assert.equal(pkg.version, '0.1.2');
+  assert.equal(pkg.version, '0.1.3');
   assert.equal(pkg.engines.vscode, '^1.82.0');
 });
 

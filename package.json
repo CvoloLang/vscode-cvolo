@@ -3,7 +3,7 @@
   "publisher": "cvololang",
   "displayName": "Cvolo",
   "description": "Early pre-release: Cvolo language support for Visual Studio Code via the standalone Cvolo Language Server.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "repository": {
     "type": "git",
     "url": "https://github.com/CvoloLang/vscode-cvolo.git"

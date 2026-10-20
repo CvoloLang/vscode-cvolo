@@ -1,6 +1,6 @@
 {
-  "languageServerVersion": "0.1.0-alpha.12",
-  "languageServerCommit": "177c25321f06a0fabb8ce8e75bdb12b02b8b1174",
-  "toolingVersion": "0.0.21.1",
+  "languageServerVersion": "0.1.0-alpha.13",
+  "languageServerCommit": "403fa77acdd62669b23430dd8f03b0bd5219f9fd",
+  "toolingVersion": "0.0.21.2",
   "compilerCompatibilityLine": "0.0.21"
 }
