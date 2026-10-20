@@ -81,6 +81,16 @@
         }
       }
     ],
+    "semanticTokenScopes": [
+      {
+        "language": "cvolo",
+        "scopes": {
+          "namespace": ["entity.name.type.cvolo"],
+          "function.cvoloExternFunction": ["support.function.cvolo"],
+          "variable.cvoloConstant": ["variable.other.constant.cvolo"]
+        }
+      }
+    ],
     "grammars": [
       {
         "language": "cvolo",
@@ -251,12 +261,6 @@
     "configurationDefaults": {
       "files.readonlyInclude": {
         "**/.cvolo/build/**": true
-      },
-      "editor.semanticTokenColorCustomizations": {
-        "rules": {
-          "function.cvoloExternFunction:cvolo": "#D7A0FF",
-          "variable.cvoloConstant:cvolo": "#4FC1FF"
-        }
       },
       "[cvolo]": {
         "editor.semanticHighlighting.enabled": true,

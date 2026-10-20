@@ -69,9 +69,16 @@ test('semantic tokens are applied for Cvolo without selecting the bundled theme'
 });
 
 test('custom semantic token modifiers stay legible without selecting the bundled theme', () => {
-  const rules = pkg.contributes.configurationDefaults?.['editor.semanticTokenColorCustomizations']?.rules;
-  assert.equal(rules?.['function.cvoloExternFunction:cvolo'], '#D7A0FF');
-  assert.equal(rules?.['variable.cvoloConstant:cvolo'], '#4FC1FF');
+  const mapping = pkg.contributes.semanticTokenScopes.find(entry => entry.language === 'cvolo');
+  assert.deepEqual(mapping.scopes['function.cvoloExternFunction'], ['support.function.cvolo']);
+  assert.deepEqual(mapping.scopes['variable.cvoloConstant'], ['variable.other.constant.cvolo']);
+  assert.equal(pkg.contributes.configurationDefaults?.['editor.semanticTokenColorCustomizations'], undefined);
+});
+
+test('VS2019 syntax decorations do not override other theme palettes', () => {
+  const colorizer = fs.readFileSync(path.join(root, 'syntax-colorizer.js'), 'utf8');
+  assert.ok(colorizer.includes("getConfiguration('workbench').get('colorTheme') !== 'Cvolo VS2019 Dark'"));
+  assert.ok(colorizer.indexOf("getConfiguration('workbench')") < colorizer.indexOf('computeSyntaxColorRanges(snapshot.document.getText())'));
 });
 
 test('qualified call highlighting separates member dots from namespace identifiers', () => {

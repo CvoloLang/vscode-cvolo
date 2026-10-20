@@ -614,8 +614,15 @@ for (const relative of [...productionJs, 'package.json', 'README.md', 'server/RE
 // semanticTokens/full) backed by the compiler semantic model, so the theme enables
 // semantic highlighting and colours the token types the server emits. TextMate
 // lexical highlighting stays as the grammar-based fallback.
-if (Object.prototype.hasOwnProperty.call(pkg.contributes ?? {}, 'semanticTokenScopes')) {
-  fail('package.json must not contribute semanticTokenScopes: the client derives scopes from the server legend');
+const semanticScopes = pkg.contributes?.semanticTokenScopes?.find(entry => entry.language === 'cvolo')?.scopes;
+for (const [selector, scope] of Object.entries({
+  namespace: 'entity.name.type.cvolo',
+  'function.cvoloExternFunction': 'support.function.cvolo',
+  'variable.cvoloConstant': 'variable.other.constant.cvolo'
+})) {
+  if (!semanticScopes?.[selector]?.includes(scope)) {
+    fail(`semantic token ${selector} must fall back to the active theme's ${scope} scope`);
+  }
 }
 const theme = readJson('themes/cvolo-vs2019-dark.json');
 if (theme.semanticHighlighting !== true) {
@@ -637,9 +644,12 @@ const requiredSemanticSelectors = {
 };
 const defaultRules = pkg.contributes?.configurationDefaults?.['editor.semanticTokenColorCustomizations']?.rules ?? {};
 for (const [selector, colour] of Object.entries(requiredSemanticSelectors)) {
-  if (defaultRules[selector] !== colour || theme.semanticTokenColors?.[selector] !== colour) {
-    fail(`semantic token selector ${selector} must use ${colour} in defaults and theme`);
+  if (theme.semanticTokenColors?.[selector] !== colour) {
+    fail(`semantic token selector ${selector} must use ${colour} in the bundled theme`);
   }
+}
+if (Object.keys(defaultRules).length > 0) {
+  fail('semantic colour defaults must not override the active theme palette');
 }
 if (theme.semanticTokenColors?.['variable.readonly.static:cvolo'] !== '#4FC1FF') {
   fail('readonly static variables must use a valid semantic-token selector');

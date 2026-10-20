@@ -17,8 +17,11 @@ test('publisher, name and version are the frozen Marketplace identity', () => {
   assert.equal(pkg.engines.vscode, '^1.82.0');
 });
 
-test('the extension does not need a static semantic-scope map because the server supplies the legend', () => {
-  assert.equal(pkg.contributes.semanticTokenScopes, undefined);
+test('semantic scope fallbacks use the active theme without requiring the bundled theme', () => {
+  const mapping = pkg.contributes.semanticTokenScopes.find(entry => entry.language === 'cvolo');
+  assert.deepEqual(mapping.scopes.namespace, ['entity.name.type.cvolo']);
+  assert.deepEqual(mapping.scopes['function.cvoloExternFunction'], ['support.function.cvolo']);
+  assert.deepEqual(mapping.scopes['variable.cvoloConstant'], ['variable.other.constant.cvolo']);
 });
 
 test('the theme enables semantic highlighting for the language-server token types', () => {
@@ -57,11 +60,8 @@ test('the theme colours imported extern functions without recolouring the extern
   assert.equal(colours.keyword, '#569CD6',
     'the extern keyword must keep its ordinary blue keyword colour');
 
-  const defaults = pkg.contributes.configurationDefaults['editor.semanticTokenColorCustomizations'];
-  assert.equal(defaults.rules['function.cvoloExternFunction:cvolo'], '#D7A0FF',
-    'the language-specific editor default and the bundled theme must agree');
-  assert.equal(defaults.rules['variable.cvoloConstant:cvolo'], '#4FC1FF',
-    'the constant modifier must have a working editor default without the bundled theme');
+  assert.equal(pkg.contributes.configurationDefaults['editor.semanticTokenColorCustomizations'], undefined,
+    'the extension must not impose dark-theme colours on other themes');
 });
 
 test('the theme keeps TextMate lexical colours as a grammar-based fallback', () => {

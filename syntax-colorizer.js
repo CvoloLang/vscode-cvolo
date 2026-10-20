@@ -65,6 +65,12 @@ function registerCvoloSyntaxColorizer(context) {
       clearEditor(editor);
       return;
     }
+    // These decorations reproduce the optional VS2019 palette. Other themes
+    // must retain control through TextMate scopes and semantic token mappings.
+    if (vscode.workspace.getConfiguration('workbench').get('colorTheme') !== 'Cvolo VS2019 Dark') {
+      clearEditor(editor);
+      return;
+    }
     const snapshot = capture(editor);
     if (!isCurrent(snapshot)) return;
     const ranges = computeSyntaxColorRanges(snapshot.document.getText());
