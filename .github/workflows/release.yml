@@ -156,14 +156,17 @@ jobs:
             vsix="cvolo-language-${VERSION}-${target}.vsix"
             test -f "${vsix}" || { echo "missing ${vsix}" >&2; exit 1; }
 
-            # package.json identity: publisher, name, version, and no redundant semantic-scope map.
+            # package.json identity and theme-aware semantic scope fallbacks.
             unzip -p "${vsix}" extension/package.json > pkg.json
             PUB=cvololang VER="${VERSION}" node -e '
               const p = require("./pkg.json");
               if (p.publisher !== process.env.PUB) throw new Error("publisher=" + p.publisher);
               if (p.name !== "cvolo-language") throw new Error("name=" + p.name);
               if (p.version !== process.env.VER) throw new Error("version=" + p.version);
-              if (p.contributes && p.contributes.semanticTokenScopes) throw new Error("semanticTokenScopes present");
+              const scopes = p.contributes?.semanticTokenScopes?.find(entry => entry.language === "cvolo")?.scopes;
+              for (const [selector, scope] of Object.entries({ namespace: "entity.name.type.cvolo", "function.cvoloExternFunction": "support.function.cvolo", "variable.cvoloConstant": "variable.other.constant.cvolo" })) {
+                if (!scopes?.[selector]?.includes(scope)) throw new Error("missing semantic fallback: " + selector);
+              }
             '
 
             # vsixmanifest: pre-release marker and the target platform.

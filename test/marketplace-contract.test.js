@@ -24,6 +24,17 @@ test('semantic scope fallbacks use the active theme without requiring the bundle
   assert.deepEqual(mapping.scopes['variable.cvoloConstant'], ['variable.other.constant.cvolo']);
 });
 
+test('release workflows validate semantic scope fallbacks instead of rejecting them', () => {
+  for (const name of ['release.yml', 'marketplace.yml']) {
+    const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', name), 'utf8');
+    assert.ok(!workflow.includes('semanticTokenScopes present'));
+    assert.ok(!workflow.includes('must not contribute semanticTokenScopes'));
+    for (const scope of ['entity.name.type.cvolo', 'support.function.cvolo', 'variable.other.constant.cvolo']) {
+      assert.ok(workflow.includes(scope), `${name} must validate ${scope}`);
+    }
+  }
+});
+
 test('the theme enables semantic highlighting for the language-server token types', () => {
   assert.equal(theme.semanticHighlighting, true,
     'semantic highlighting must be on so the language server can refine TextMate colours');

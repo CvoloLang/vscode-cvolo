@@ -166,8 +166,13 @@ jobs:
             if [ "$got_version" != "$VERSION" ]; then
               echo "$target: version is '$got_version', expected '$VERSION'" >&2; exit 1
             fi
-            if printf '%s' "$pkg_json" | jq -e '.contributes.semanticTokenScopes' >/dev/null 2>&1; then
-              echo "$target: package must not contribute semanticTokenScopes" >&2; exit 1
+            if ! printf '%s' "$pkg_json" | jq -e '
+              [.contributes.semanticTokenScopes[]? | select(.language == "cvolo") | .scopes] | first |
+              (.namespace | index("entity.name.type.cvolo") != null) and
+              (.["function.cvoloExternFunction"] | index("support.function.cvolo") != null) and
+              (.["variable.cvoloConstant"] | index("variable.other.constant.cvolo") != null)
+            ' >/dev/null; then
+              echo "$target: package is missing theme-aware semantic scope fallbacks" >&2; exit 1
             fi
 
             manifest="$(unzip -p "$vsix" extension.vsixmanifest)"
