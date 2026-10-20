@@ -8,9 +8,8 @@ on:
   workflow_dispatch:
     inputs:
       languageServerVersion:
-        description: Official Language Server release version to bundle (e.g. 0.1.0-alpha.12)
-        required: true
-        default: 0.1.0-alpha.12
+        description: Optional official Language Server version (must match the repository pin)
+        required: false
 
   # workflow_dispatch only registers once this file exists on the default branch
   # (main), which Stage 10 must not touch. Until then, run the same packaging
@@ -20,6 +19,7 @@ on:
       - develop/0.1.0
     paths:
       - '.github/workflows/package.yml'
+      - '.github/language-server-release.json'
       - 'package.json'
       - 'package-lock.json'
       - 'extension.js'
@@ -49,9 +49,6 @@ jobs:
   package:
     name: ${{ matrix.target }}
     runs-on: ubuntu-latest
-    env:
-      # Push-triggered runs have no inputs; default to the pinned official release.
-      LSP_VERSION: ${{ github.event.inputs.languageServerVersion || '0.1.0-alpha.12' }}
     strategy:
       fail-fast: false
       matrix:
@@ -80,11 +77,37 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Resolve pinned Language Server
+        env:
+          REQUESTED_LSP_VERSION: ${{ inputs.languageServerVersion }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const pin = require('./.github/language-server-release.json');
+          const requested = process.env.REQUESTED_LSP_VERSION;
+          if (requested && requested !== pin.languageServerVersion) {
+            throw new Error('Requested Language Server version must match .github/language-server-release.json');
+          }
+          fs.appendFileSync(process.env.GITHUB_ENV, [
+            `LSP_VERSION=${pin.languageServerVersion}`,
+            `LSP_COMMIT=${pin.languageServerCommit}`,
+            `LSP_TOOLING=${pin.toolingVersion}`,
+            `LSP_COMPILER=${pin.compilerCompatibilityLine}`,
+            ''
+          ].join('\n'));
+          NODE
+
       - name: Static checks (no bundle)
         run: npm run check
 
       - name: Stage the official Language Server bundle
-        run: node scripts/stage-server.js --lsp-version "${{ env.LSP_VERSION }}" --rid ${{ matrix.rid }}
+        run: |
+          node scripts/stage-server.js \
+            --lsp-version "${LSP_VERSION}" \
+            --rid ${{ matrix.rid }} \
+            --expect-commit "${LSP_COMMIT}" \
+            --expect-tooling-version "${LSP_TOOLING}" \
+            --expect-compiler-line "${LSP_COMPILER}"
 
       - name: Validate the staged bundle
         run: npm run check
