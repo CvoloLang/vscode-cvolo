@@ -311,6 +311,10 @@
       {
         "command": "cvolo.exportDiagnosticBundle",
         "title": "Cvolo: Export Diagnostic Bundle"
+      },
+      {
+        "command": "cvolo.addDiagnosticMarker",
+        "title": "Cvolo: Add Diagnostic Marker"
       }
     ],
     "menus": {

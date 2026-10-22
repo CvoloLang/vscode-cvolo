@@ -144,3 +144,28 @@ test('archive paths are confined to the private trace directory', () => {
   assert.throws(() => validatePrivateArchive(safe, trace,
     { fsApi: linkFs, pathApi: path.posix }), /regular file/);
 });
+
+test('diagnostic markers send only fixed categories with a non-durable ACK', async () => {
+  const seen = [];
+  const client = mockClient({
+    [METHODS.marker]: body => {
+      seen.push(body);
+      return { status: 'queued_best_effort', markerId: 'marker-1', recordingEpoch: 3, durable: false };
+    }
+  });
+  client.initializeResult.capabilities.experimental.cvoloObservability.addMarker = METHODS.marker;
+  const ctl = new TelemetryController(() => client);
+  const ack = await ctl.addMarker('definition');
+  assert.equal(ack.markerId, 'marker-1');
+  assert.equal(ack.durable, false);
+  assert.deepEqual(seen, [{ protocolVersion: 1, category: 'definition' }]);
+  await assert.rejects(ctl.addMarker('secret source contents'), /Invalid diagnostic marker category/);
+  assert.equal(seen.length, 1);
+});
+
+test('older servers without the marker method reject without RPC', async () => {
+  const client = mockClient({});
+  await assert.rejects(new TelemetryController(() => client).addMarker('completion'),
+    /does not support diagnostic markers/);
+  assert.deepEqual(client.calls, []);
+});

@@ -66,3 +66,9 @@ or certify privacy redaction**. Review the ZIP before sharing it. The extension
 offers to reveal the saved file or copy its path; no automatic workspace copy
 is made. Diagnostic marker capture and full source-consent workflows remain
 unimplemented.
+
+Diagnostic markers are available through **Cvolo: Add Diagnostic Marker**
+while recording is active. Select one fixed category (Definition/F12,
+Completion, Highlighting, Diagnostics, Performance, Other); no arbitrary note,
+source or path is captured. The server returns a unique marker ID and recording
+epoch. Its acknowledgement means **queued best effort**, not durable on disk.

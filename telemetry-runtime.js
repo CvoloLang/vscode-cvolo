@@ -8,7 +8,8 @@ const METHODS = Object.freeze({
   status: 'cvolo/observability/status.v1',
   setRecording: 'cvolo/observability/setRecording.v1',
   checkpoint: 'cvolo/observability/checkpoint.v1',
-  export: 'cvolo/observability/export.v1'
+  export: 'cvolo/observability/export.v1',
+  marker: 'cvolo/observability/addMarker.v1'
 });
 
 function recordingCapability(client) {
@@ -113,6 +114,25 @@ class TelemetryController {
       throw new Error('The server returned an invalid recording checkpoint.');
     }
     return data;
+  }
+
+  async addMarker(category) {
+    if (!['definition', 'completion', 'highlighting', 'diagnostics', 'performance', 'other'].includes(category)) {
+      throw new Error('Invalid diagnostic marker category.');
+    }
+    const client = this.getClient();
+    if (recordingCapability(client)?.addMarker !== METHODS.marker) {
+      throw new Error('The running Language Server does not support diagnostic markers.');
+    }
+    const result = await this.invoke(METHODS.marker, { protocolVersion: 1, category });
+    if (!result || !['queued_best_effort', 'rejected'].includes(result.status)) {
+      throw new Error('Invalid diagnostic marker acknowledgement.');
+    }
+    if (result.status === 'queued_best_effort' &&
+        (typeof result.markerId !== 'string' || !Number.isSafeInteger(result.recordingEpoch))) {
+      throw new Error('Missing diagnostic marker identity.');
+    }
+    return result;
   }
 
   async exportStopped(checkpoint) {

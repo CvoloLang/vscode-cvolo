@@ -64,6 +64,36 @@ async function startDiagnosticRecording() {
   void vscode.window.showInformationMessage('Cvolo diagnostic recording started (detailed, no source capture).');
 }
 
+async function addDiagnosticMarker() {
+  const checkpoint = await telemetry.checkpoint();
+  if (checkpoint.effectiveMode === 'off') {
+    throw new Error('Start diagnostic recording before adding a marker.');
+  }
+
+  // Categories are fixed, with no source text, file path or free-form note
+  // transmitted by the extension.
+  const selection = await vscode.window.showQuickPick([
+    { label: 'Go to Definition / F12', category: 'definition' },
+    { label: 'Completion', category: 'completion' },
+    { label: 'Highlighting', category: 'highlighting' },
+    { label: 'Diagnostics', category: 'diagnostics' },
+    { label: 'Performance', category: 'performance' },
+    { label: 'Other issue', category: 'other' }
+  ], { placeHolder: 'What behavior are you marking?' });
+  if (!selection) return;
+
+  const ack = await telemetry.addMarker(selection.category);
+  if (ack.status !== 'queued_best_effort') {
+    throw new Error('Marker was rejected: ' + String(ack.reason || 'unknown'));
+  }
+  outputChannel?.appendLine('[client][telemetry] marker=' + ack.markerId
+    + ' category=' + selection.category + ' epoch=' + ack.recordingEpoch
+    + ' (best-effort queue; not guaranteed durable)');
+  void vscode.window.showInformationMessage(
+    'Cvolo marker added (' + selection.label + '). The marker is queued but not guaranteed durable.'
+  );
+}
+
 async function stopDiagnosticRecording() {
   const ack = await telemetry.setMode('off');
   setTelemetryStatus(ack.effectiveMode, ack.status !== 'applied' || ack.replayIncomplete);
@@ -498,6 +528,7 @@ async function activate(context) {
   const telemetryCommands = [
     ['cvolo.startDiagnosticRecording', startDiagnosticRecording],
     ['cvolo.stopDiagnosticRecording', stopDiagnosticRecording],
+    ['cvolo.addDiagnosticMarker', addDiagnosticMarker],
     ['cvolo.showDiagnosticCheckpoint', showDiagnosticCheckpoint],
     ['cvolo.exportDiagnosticBundle', exportDiagnosticBundle]
   ];
