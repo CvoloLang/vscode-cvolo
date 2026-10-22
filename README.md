@@ -44,3 +44,25 @@ Set `cvolo.libraryPaths` to `.cvlib` files or directories whose top-level `.cvli
 
 Protocol tracing uses the canonical `vscode-languageclient` setting:
 
+
+## Diagnostic recording (Inc 3.3, in development)
+
+When the running Language Server advertises `cvoloObservability` protocol v1,
+the Command Palette provides **Cvolo: Start Diagnostic Recording**, **Stop Diagnostic
+Recording**, **Show Diagnostic Checkpoint** and **Export Diagnostic Bundle**.
+The status bar shows the current mode. Older bundled servers may not support
+these commands; update/select a compatible standalone server to use them.
+
+Recording defaults to **Off**. Start enables the metadata-only `detailed`
+mode. Source-text, path and forensic capture are not requested. Each server
+generation receives a distinct JSONL path under the extension host's private
+`globalStorageUri/telemetry` directory, not the user's workspace. The
+`cvolo.trace.server` protocol trace setting remains unrelated and unchanged.
+
+Export requires a stopped and drained recording. It prompts before creating
+any ZIP; the ZIP stays local and the extension does not upload it. The resulting
+manifest includes SHA-256 digests, but **does not establish replay completeness
+or certify privacy redaction**. Review the ZIP before sharing it. The extension
+offers to reveal the saved file or copy its path; no automatic workspace copy
+is made. Diagnostic marker capture and full source-consent workflows remain
+unimplemented.

@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
+const { TelemetryController, createPrivateTracePath, validatePrivateArchive } = require('./telemetry-runtime');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
 const { LifecycleController, currentRid, formatBundleProvenance, readBundleManifest, resolveServerCommand, supportsDiagnosticLogDirectory, supportsContinuousLog, debugLogPath, pruneDebugLogs, attachSignatureHelpAfterCallCompletion } = require('./extension-runtime');
 const { registerCvoloBraceColorizer } = require('./brace-colorizer');
@@ -11,6 +12,127 @@ const { registerEditorIntelligence } = require('./editor-intelligence');
 
 let lifecycle;
 let outputChannel;
+let telemetry;
+let telemetryStatusBar;
+let runningTraceFile;
+
+function setTelemetryStatus(mode, warning = false) {
+  if (!telemetryStatusBar) return;
+  const active = mode === 'basic' || mode === 'detailed';
+  telemetryStatusBar.text = active ? '$(record) Cvolo: Recording' : '$(pulse) Cvolo: Telemetry';
+  telemetryStatusBar.tooltip = warning
+    ? 'Cvolo diagnostic recording: incomplete or degraded; open checkpoint'
+    : active ? 'Cvolo diagnostic recording is active; click to stop'
+      : 'Cvolo diagnostic recording is off; click to start';
+  telemetryStatusBar.command = active ? 'cvolo.stopDiagnosticRecording' : 'cvolo.startDiagnosticRecording';
+}
+
+async function refreshTelemetryStatus() {
+  try {
+    const status = await telemetry.status();
+    setTelemetryStatus(status.effectiveMode, status.replayIncomplete || status.writerState === 'degraded');
+  } catch {
+    setTelemetryStatus('off', false);
+    if (telemetryStatusBar) {
+      telemetryStatusBar.text = '$(circle-slash) Cvolo: Telemetry';
+      telemetryStatusBar.tooltip = 'Recording is unavailable in the running Language Server';
+      telemetryStatusBar.command = 'cvolo.showDiagnosticCheckpoint';
+    }
+  }
+}
+
+async function telemetryCommand(operation) {
+  try {
+    await operation();
+  } catch (error) {
+    outputChannel?.appendLine('[client][telemetry] command failed: ' + formatError(error));
+    void vscode.window.showErrorMessage('Cvolo diagnostic recording: ' + formatError(error));
+  }
+}
+
+async function startDiagnosticRecording() {
+  const status = await telemetry.status();
+  if (status.effectiveMode !== 'off') {
+    void vscode.window.showInformationMessage('Cvolo diagnostic recording is already active.');
+    return;
+  }
+  const ack = await telemetry.setMode('detailed');
+  setTelemetryStatus(ack.effectiveMode, ack.status !== 'applied');
+  if (ack.status !== 'applied') {
+    throw new Error('Start was not acknowledged: ' + String(ack.reason || ack.status));
+  }
+  void vscode.window.showInformationMessage('Cvolo diagnostic recording started (detailed, no source capture).');
+}
+
+async function stopDiagnosticRecording() {
+  const ack = await telemetry.setMode('off');
+  setTelemetryStatus(ack.effectiveMode, ack.status !== 'applied' || ack.replayIncomplete);
+  if (ack.status === 'rejected') {
+    throw new Error('Stop was rejected: ' + String(ack.reason || 'unknown'));
+  }
+  if (ack.status !== 'applied' || ack.replayIncomplete) {
+    outputChannel?.appendLine('[client][telemetry] stop is partial: ' + String(ack.reason || 'trace incomplete'));
+    void vscode.window.showWarningMessage('Cvolo recording stopped, but some events may be missing. Inspect the diagnostic checkpoint before export.');
+    return;
+  }
+  void vscode.window.showInformationMessage('Cvolo diagnostic recording stopped and drained.');
+}
+
+async function showDiagnosticCheckpoint() {
+  const checkpoint = await telemetry.checkpoint();
+  setTelemetryStatus(checkpoint.effectiveMode, checkpoint.replayIncomplete);
+  const reasons = checkpoint.incompleteReasons.length
+    ? checkpoint.incompleteReasons.join(', ') : 'none reported';
+  outputChannel?.appendLine('[client][telemetry] checkpoint epoch=' + checkpoint.recordingEpoch
+    + ' mode=' + checkpoint.effectiveMode
+    + ' writer=' + checkpoint.writerState
+    + ' durableSequence=' + (checkpoint.lastDurableProducerSequence ?? 'unknown')
+    + ' pending=' + checkpoint.pendingEvents
+    + ' loss=' + [checkpoint.droppedP0, checkpoint.droppedP1, checkpoint.droppedP2].join('/')
+    + ' writerLost=' + checkpoint.writerLost
+    + ' incomplete=' + checkpoint.replayIncomplete + ' reasons=' + reasons);
+  void vscode.window.showInformationMessage(
+    'Cvolo recording: ' + checkpoint.effectiveMode + ', epoch ' + checkpoint.recordingEpoch
+    + ', writer ' + checkpoint.writerState + ', incomplete: ' + checkpoint.replayIncomplete
+    + '. Details are in the Cvolo Language Server output channel.'
+  );
+}
+
+async function exportDiagnosticBundle() {
+  const checkpoint = await telemetry.checkpoint();
+  if (checkpoint.effectiveMode !== 'off' || !checkpoint.closedForInspection) {
+    throw new Error('Stop recording and finish draining before exporting.');
+  }
+  if (!checkpoint.exportSupported) {
+    throw new Error('This Language Server has no exportable disk recording.');
+  }
+  const confirmation = await vscode.window.showWarningMessage(
+    'Export Cvolo diagnostic bundle? The ZIP includes recorded JSONL events and a SHA-256 manifest. '
+      + 'Privacy sanitization has not been independently audited, and the trace may contain sensitive metadata. '
+      + 'The bundle stays on this machine; it is not uploaded. '
+      + 'Replay completeness is not guaranteed.',
+    { modal: true }, 'Export Locally'
+  );
+  if (confirmation !== 'Export Locally') return;
+
+  const result = await telemetry.exportStopped(checkpoint);
+  // Do not trust arbitrary filesystem paths returned through the RPC channel.
+  const archive = validatePrivateArchive(result.archivePath, runningTraceFile);
+  outputChannel?.appendLine('[client][telemetry] exported local archive (epoch='
+    + result.recordingEpoch + ', segments=' + result.segmentCount
+    + ', incomplete=' + result.replayIncomplete + ')');
+  const response = await vscode.window.showInformationMessage(
+    'Cvolo diagnostic bundle saved locally. '
+      + (result.replayIncomplete ? 'Warning: the trace is incomplete.' : 'Completeness is not independently verified.'),
+    'Reveal File', 'Copy Path'
+  );
+  if (response === 'Reveal File') {
+    await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(archive));
+  } else if (response === 'Copy Path') {
+    await vscode.env.clipboard.writeText(archive);
+  }
+}
+
 
 function formatError(error) {
   return error?.message ?? String(error);
@@ -187,9 +309,20 @@ async function createAndStartClient(context) {
 
   outputChannel.appendLine(`[client] server arguments: ${serverArguments.join(' ')}`);
 
+  // Default recording is Off. Only an explicit palette action changes it.
+  // Every server generation has a separate, private trace file. It is not
+  // placed in the workspace and no telemetry is sent over the network.
+  const traceFile = createPrivateTracePath(context.globalStorageUri.fsPath);
   const serverOptions = {
     command: resolved.command,
-    args: serverArguments
+    args: serverArguments,
+    options: {
+      env: {
+        ...process.env,
+        CVOLO_OBS_MODE: 'off',
+        CVOLO_TRACE_PATH: traceFile
+      }
+    }
   };
 
   const clientOptions = {
@@ -286,6 +419,7 @@ async function createAndStartClient(context) {
 
   try {
     await nextClient.start();
+    runningTraceFile = traceFile;
     return nextClient;
   } catch (error) {
     outputChannel.appendLine(
@@ -321,12 +455,18 @@ function requestRestart(reason) {
   }
 
   outputChannel?.appendLine(`[client] restarting Language Server: ${reason}`);
-  schedule(currentLifecycle.restart(reason));
+  schedule(currentLifecycle.restart(reason).then(() => refreshTelemetryStatus()));
 }
 
 async function activate(context) {
   outputChannel = vscode.window.createOutputChannel('Cvolo Language Server');
   context.subscriptions.push(outputChannel);
+
+  telemetry = new TelemetryController(() => lifecycle?.client);
+  telemetryStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  setTelemetryStatus('off');
+  telemetryStatusBar.show();
+  context.subscriptions.push(telemetryStatusBar);
 
   registerCvoloBraceColorizer(context);
   registerCvoloSyntaxColorizer(context);
@@ -355,6 +495,18 @@ async function activate(context) {
     })
   );
 
+  const telemetryCommands = [
+    ['cvolo.startDiagnosticRecording', startDiagnosticRecording],
+    ['cvolo.stopDiagnosticRecording', stopDiagnosticRecording],
+    ['cvolo.showDiagnosticCheckpoint', showDiagnosticCheckpoint],
+    ['cvolo.exportDiagnosticBundle', exportDiagnosticBundle]
+  ];
+  for (const [name, action] of telemetryCommands) {
+    context.subscriptions.push(
+      vscode.commands.registerCommand(name, () => telemetryCommand(action))
+    );
+  }
+
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(event => {
       const serverPathChanged = event.affectsConfiguration('cvolo.server.path');
@@ -370,7 +522,7 @@ async function activate(context) {
     })
   );
 
-  schedule(lifecycle.start('initial start'));
+  schedule(lifecycle.start('initial start').then(() => refreshTelemetryStatus()));
 
   return { getClient: () => lifecycle?.client };
 }
@@ -387,6 +539,9 @@ async function deactivate() {
   }
 
   outputChannel = undefined;
+  telemetry = undefined;
+  telemetryStatusBar = undefined;
+  runningTraceFile = undefined;
 }
 
 module.exports = {

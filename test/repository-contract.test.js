@@ -103,3 +103,17 @@ test('Cvolo keeps automatic parameter hints and language-defined closing pairs e
       `Cvolo must auto-close ${open} with ${close}`);
   }
 });
+
+test('telemetry palette commands are contributed without changing protocol trace semantics', () => {
+  const ids = pkg.contributes.commands.map(entry => entry.command);
+  for (const name of [
+    'cvolo.startDiagnosticRecording', 'cvolo.stopDiagnosticRecording',
+    'cvolo.showDiagnosticCheckpoint', 'cvolo.exportDiagnosticBundle'
+  ]) {
+    assert.ok(ids.includes(name), name);
+    assert.match(extensionSource, new RegExp(name.replaceAll('.', '\\.')));
+  }
+  assert.match(extensionSource, /CVOLO_OBS_MODE: 'off'/);
+  assert.match(extensionSource, /CVOLO_TRACE_PATH: traceFile/);
+  assert.match(extensionSource, /showWarningMessage\([\s\S]*?modal: true[\s\S]*?'Export Locally'/);
+});

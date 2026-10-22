@@ -85,9 +85,15 @@
       {
         "language": "cvolo",
         "scopes": {
-          "namespace": ["entity.name.type.cvolo"],
-          "function.cvoloExternFunction": ["support.function.cvolo"],
-          "variable.cvoloConstant": ["variable.other.constant.cvolo"]
+          "namespace": [
+            "entity.name.type.cvolo"
+          ],
+          "function.cvoloExternFunction": [
+            "support.function.cvolo"
+          ],
+          "variable.cvoloConstant": [
+            "variable.other.constant.cvolo"
+          ]
         }
       }
     ],
@@ -289,6 +295,22 @@
       {
         "command": "cvolo.openDiagnosticLog",
         "title": "Cvolo: Open Diagnostic Log"
+      },
+      {
+        "command": "cvolo.startDiagnosticRecording",
+        "title": "Cvolo: Start Diagnostic Recording"
+      },
+      {
+        "command": "cvolo.stopDiagnosticRecording",
+        "title": "Cvolo: Stop Diagnostic Recording"
+      },
+      {
+        "command": "cvolo.showDiagnosticCheckpoint",
+        "title": "Cvolo: Show Diagnostic Checkpoint"
+      },
+      {
+        "command": "cvolo.exportDiagnosticBundle",
+        "title": "Cvolo: Export Diagnostic Bundle"
       }
     ],
     "menus": {
@@ -308,7 +330,7 @@
     }
   },
   "scripts": {
-    "check": "node --check extension.js && node --check extension-runtime.js && node --check editor-intelligence.js && node --check editor-intelligence-runtime.js && node --check brace-colorizer.js && node --check brace-colorizer-runtime.js && node --check syntax-colorizer.js && node --check syntax-colorizer-runtime.js && node --check scripts/validate.js && node scripts/validate.js && node --test",
+    "check": "node --check extension.js && node --check extension-runtime.js && node --check telemetry-runtime.js && node --check editor-intelligence.js && node --check editor-intelligence-runtime.js && node --check brace-colorizer.js && node --check brace-colorizer-runtime.js && node --check syntax-colorizer.js && node --check syntax-colorizer-runtime.js && node --check scripts/validate.js && node scripts/validate.js && node --test",
     "test:host": "node tests/runTest.js",
     "test:recovery": "node tests/runRecovery.js"
   },
